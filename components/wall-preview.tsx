@@ -21,8 +21,8 @@ export function WallPreview({ version, highlighted }: { version: WallVersion; hi
           style={{
             left: `${hold.x}%`,
             top: `${hold.y}%`,
-            background: role ? roleColor[role] : hold.color,
-            boxShadow: role ? `0 0 0 4px ${roleColor[role]}33` : undefined
+            color: role ? roleColor[role] : hold.color,
+            boxShadow: role ? `0 0 0 4px ${roleColor[role]}22` : `0 0 0 3px ${hold.color}18`
           }}
         />
       ))}
