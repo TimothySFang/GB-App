@@ -39,7 +39,7 @@ body { min-height: 100vh; }
 .col { display: flex; flex-direction: column; gap: 12px; }
 .list { display: flex; flex-direction: column; gap: 12px; }
 .wall-preview { position: relative; width: 100%; aspect-ratio: 4 / 5; border-radius: 18px; overflow: hidden; border: 1px solid var(--border); background: radial-gradient(circle at top, #25325f, #0f1630 60%); }
-.wall-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; }
+.wall-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; user-select: none; -webkit-user-select: none; pointer-events: none; }
 .hold-dot { position: absolute; width: 16px; height: 16px; border-radius: 999px; border: 2px solid currentColor; background: transparent; transform: translate(-50%, -50%); opacity: .8; }
 .route-chip { border-radius: 999px; padding: 6px 10px; background: #101933; border: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 .small { font-size: 13px; color: var(--muted); }
