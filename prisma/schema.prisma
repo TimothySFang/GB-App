@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  member
+}
+
+enum ChangeType {
+  additive
+  modified
+  reset
+}
+
+enum HoldStatus {
+  active
+  moved
+  removed
+  added
+}
+
+enum HoldRole {
+  start
+  middle
+  finish
+}
+
+enum CompatibilityStatus {
+  compatible
+  needs_review
+  incompatible
+}
+
+model User {
+  id            String           @id @default(cuid())
+  email         String           @unique
+  displayName   String
+  passwordHash  String?
+  role          Role             @default(member)
+  climbs        Climb[]
+  ratings       ClimbRating[]
+  gradeVotes    ClimbGradeVote[]
+  createdAt     DateTime         @default(now())
+}
+
+model Wall {
+  id          String        @id @default(cuid())
+  name        String
+  notes       String?
+  versions    WallVersion[]
+  createdAt   DateTime      @default(now())
+}
+
+model WallVersion {
+  id             String          @id @default(cuid())
+  wallId         String
+  parentVersionId String?
+  name           String
+  changeType     ChangeType
+  imageUrl       String?
+  notes          String?
+  wall           Wall            @relation(fields: [wallId], references: [id], onDelete: Cascade)
+  parentVersion  WallVersion?    @relation("VersionParent", fields: [parentVersionId], references: [id])
+  childVersions  WallVersion[]   @relation("VersionParent")
+  holds          Hold[]
+  climbs         Climb[]
+  compatibility  ClimbCompatibility[]
+  createdAt      DateTime        @default(now())
+}
+
+model Hold {
+  id               String        @id @default(cuid())
+  canonicalHoldId  String
+  wallVersionId    String
+  label            String
+  color            String?
+  x                Float
+  y                Float
+  status           HoldStatus    @default(active)
+  wallVersion      WallVersion   @relation(fields: [wallVersionId], references: [id], onDelete: Cascade)
+  climbRefs        ClimbHold[]
+  createdAt        DateTime      @default(now())
+}
+
+model Climb {
+  id               String               @id @default(cuid())
+  wallVersionId    String
+  createdByUserId  String
+  name             String
+  setterGrade      String?
+  notes            String?
+  wallVersion      WallVersion          @relation(fields: [wallVersionId], references: [id], onDelete: Cascade)
+  createdBy        User                 @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  holds            ClimbHold[]
+  ratings          ClimbRating[]
+  gradeVotes       ClimbGradeVote[]
+  compatibility    ClimbCompatibility[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+}
+
+model ClimbHold {
+  id        String    @id @default(cuid())
+  climbId    String
+  holdId     String
+  role       HoldRole
+  orderIndex Int      @default(0)
+  climb      Climb    @relation(fields: [climbId], references: [id], onDelete: Cascade)
+  hold       Hold     @relation(fields: [holdId], references: [id], onDelete: Cascade)
+}
+
+model ClimbRating {
+  id        String    @id @default(cuid())
+  climbId    String
+  userId     String
+  stars      Int
+  climb      Climb    @relation(fields: [climbId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([climbId, userId])
+}
+
+model ClimbGradeVote {
+  id             String    @id @default(cuid())
+  climbId         String
+  userId          String
+  suggestedGrade  String
+  climb           Climb    @relation(fields: [climbId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([climbId, userId])
+}
+
+model ClimbCompatibility {
+  id                  String               @id @default(cuid())
+  climbId             String
+  targetWallVersionId String
+  status              CompatibilityStatus
+  reason              String?
+  climb               Climb                @relation(fields: [climbId], references: [id], onDelete: Cascade)
+  targetWallVersion   WallVersion          @relation(fields: [targetWallVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([climbId, targetWallVersionId])
+}
