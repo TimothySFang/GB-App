@@ -455,6 +455,7 @@ export function Dashboard() {
         </div>
       )}
 
+      <div className="bottom-nav-spacer" />
       <nav className="bottom-nav bottom-nav-5">
         {[
           ['home', '⌂', 'Home'],
