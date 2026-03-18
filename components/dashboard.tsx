@@ -278,11 +278,11 @@ export function Dashboard() {
         <div className="grid grid-2 mobile-grid-1">
           <div className="card col">
             <h2 className="section-title">Quick stats</h2>
-            <div className="grid grid-2 mobile-grid-1">
-              <div className="card"><div className="small">Created climbs</div><div className="kpi">{profileCreated.length}</div></div>
-              <div className="card"><div className="small">Sent climbs</div><div className="kpi">{profileSent.length}</div></div>
-              <div className="card"><div className="small">Favorites</div><div className="kpi">{profileFavorites.length}</div></div>
-              <div className="card"><div className="small">Layouts</div><div className="kpi">{versions.length}</div></div>
+            <div className="stats-row">
+              <div className="stat-pill"><span className="small">Created</span><strong>{profileCreated.length}</strong></div>
+              <div className="stat-pill"><span className="small">Sent</span><strong>{profileSent.length}</strong></div>
+              <div className="stat-pill"><span className="small">Favorites</span><strong>{profileFavorites.length}</strong></div>
+              <div className="stat-pill"><span className="small">Layouts</span><strong>{versions.length}</strong></div>
             </div>
           </div>
           <div className="card col">
@@ -458,10 +458,10 @@ export function Dashboard() {
       <nav className="bottom-nav bottom-nav-5">
         {[
           ['home', '⌂', 'Home'],
-          ['climbs', '🧗', 'Climbs'],
+          ['climbs', '◇', 'Climbs'],
           ['new', '＋', 'New'],
           ['versions', '◫', 'Layouts'],
-          ['profile', '☺', 'Profile']
+          ['profile', '◎', 'Profile']
         ].map(([id, icon, label]) => (
           <button key={id} className={`bottom-nav-item compact with-label ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id as TabId)} aria-label={label}>
             <span className="nav-icon">{icon}</span>
