@@ -37,6 +37,12 @@ export type Rating = {
   stars: number;
 };
 
+export type Send = {
+  userId: string;
+  grade: string;
+  sentAt: string;
+};
+
 export type Climb = {
   id: string;
   wallVersionId: string;
@@ -48,6 +54,8 @@ export type Climb = {
   holds: ClimbHold[];
   ratings: Rating[];
   gradeVotes: GradeVote[];
+  favorites?: string[];
+  sends?: Send[];
 };
 
 export type Compatibility = {
