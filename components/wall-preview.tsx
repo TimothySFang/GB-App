@@ -6,7 +6,7 @@ const roleColor: Record<HoldRole, string> = {
   finish: '#ec4899'
 };
 
-export function WallPreview({ version, highlighted }: { version: WallVersion; highlighted?: Array<{ hold: Hold; role?: HoldRole }> }) {
+export function WallPreview({ version, highlighted, uniformColor }: { version: WallVersion; highlighted?: Array<{ hold: Hold; role?: HoldRole }>; uniformColor?: string }) {
   const highlights: Array<{ hold: Hold; role?: HoldRole }> = highlighted ?? version.holds.map((hold) => ({ hold }));
 
   return (
@@ -21,8 +21,10 @@ export function WallPreview({ version, highlighted }: { version: WallVersion; hi
           style={{
             left: `${hold.x}%`,
             top: `${hold.y}%`,
-            color: role ? roleColor[role] : hold.color,
-            boxShadow: role ? `0 0 0 4px ${roleColor[role]}22` : `0 0 0 3px ${hold.color}18`
+            color: uniformColor ?? (role ? roleColor[role] : hold.color),
+            boxShadow: role
+              ? `0 0 0 4px ${roleColor[role]}22`
+              : `0 0 0 3px ${(uniformColor ?? hold.color)}18`
           }}
         />
       ))}

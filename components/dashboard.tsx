@@ -287,7 +287,7 @@ export function Dashboard() {
           </div>
           <div className="card col">
             <h2 className="section-title">Current wall</h2>
-            <WallPreview version={selectedVersion} />
+            <WallPreview version={selectedVersion} uniformColor="#22c55e" />
           </div>
         </div>
       )}
@@ -417,7 +417,10 @@ export function Dashboard() {
             <div className="card col">
               <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <div><h2 className="section-title">Layout editor</h2><p className="section-subtitle">Tap empty space to create a hold. Drag holds to move them.</p></div>
-                <label className="button secondary file-button">Upload image<input type="file" accept="image/*" onChange={onBoardImageUpload} /></label>
+                <div className="row">
+                  <label className="button secondary file-button">Upload image<input type="file" accept="image/*" onChange={onBoardImageUpload} /></label>
+                  <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete hold</button>
+                </div>
               </div>
               <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} />
               <div className="grid grid-2 mobile-grid-1">
@@ -428,7 +431,6 @@ export function Dashboard() {
                   <input className="input" value={activeLayoutHold?.label ?? ''} onChange={(e) => renameActiveHold(e.target.value)} disabled={!activeLayoutHold} />
                   <label className="label">Color</label>
                   <input className="input" type="color" value={activeLayoutHold?.color ?? '#ffffff'} onChange={(e) => recolorActiveHold(e.target.value)} disabled={!activeLayoutHold} />
-                  <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete hold</button>
                 </div>
                 <div className="card col"><strong>How it works</strong><span className="small">- Upload a fresh board photo for this layout</span><span className="small">- Tap the image to create a new hold</span><span className="small">- Drag any hold to reposition it</span><span className="small">- Tap a hold, then rename/recolor/delete it</span></div>
               </div>
