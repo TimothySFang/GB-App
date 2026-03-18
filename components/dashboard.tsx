@@ -274,18 +274,6 @@ export function Dashboard() {
 
   return (
     <div className="container col mobile-shell">
-      <div className="card">
-        <div className="badge">MVP2 · discovery + profile + feedback</div>
-        <h1 className="page-title">{data.wall.name}</h1>
-        <p className="page-subtitle">Find climbs faster, favorite them, rate them, and log sends with community grades.</p>
-        <div className="row">
-          <span className="badge">{selectedVersion.name}</span>
-          <span className="badge">{climbs.length} climbs</span>
-          <span className="badge">{profileFavorites.length} favorites</span>
-          <span className="badge">{profileSent.length} sent</span>
-        </div>
-      </div>
-
       {activeTab === 'home' && (
         <div className="grid grid-2 mobile-grid-1">
           <div className="card col">
@@ -469,12 +457,17 @@ export function Dashboard() {
 
       <nav className="bottom-nav bottom-nav-5">
         {[
-          ['home', '⌂'],
-          ['climbs', '🧗'],
-          ['new', '+'],
-          ['versions', '◫'],
-          ['profile', '☺']
-        ].map(([id, label]) => <button key={id} className={`bottom-nav-item compact ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id as TabId)} aria-label={id}>{label}</button>)}
+          ['home', '⌂', 'Home'],
+          ['climbs', '🧗', 'Climbs'],
+          ['new', '＋', 'New'],
+          ['versions', '◫', 'Layouts'],
+          ['profile', '☺', 'Profile']
+        ].map(([id, icon, label]) => (
+          <button key={id} className={`bottom-nav-item compact with-label ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id as TabId)} aria-label={label}>
+            <span className="nav-icon">{icon}</span>
+            <span className="nav-label">{label}</span>
+          </button>
+        ))}
       </nav>
     </div>
   );
