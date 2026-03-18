@@ -50,6 +50,7 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .climb-list-button { width: 100%; text-align: left; }
 .selected-panel { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(125,211,252,.35), 0 10px 30px rgba(0,0,0,.2); }
 .disabled-button { opacity: 0.55; cursor: not-allowed; }
+.wrap-grid { display: flex; flex-wrap: wrap; gap: 10px; }
 @media (max-width: 720px) {
   .container { padding: 16px; }
   .page-title { font-size: 28px; }
