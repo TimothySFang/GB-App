@@ -47,6 +47,7 @@ export function Dashboard() {
     notes: '',
     sourceVersionId: latest.id
   });
+  const [formError, setFormError] = useState<string>('');
 
   const selectedVersion = versions.find((v) => v.id === selectedVersionId) ?? latest;
   const inheritedClimbs = climbs.filter((climb) => climb.wallVersionId !== latest.id);
@@ -167,8 +168,24 @@ export function Dashboard() {
     });
   };
 
+  const hasDraftSelections = Object.values(draft.selected).some((arr) => arr.length > 0);
+
   const saveDraftClimb = () => {
-    if (!draft.name.trim()) return;
+    if (!draft.name.trim()) {
+      setFormError('Climb name is required.');
+      return;
+    }
+    if (!draft.setterGrade.trim()) {
+      setFormError('Setter grade is required.');
+      return;
+    }
+    if (!draft.selected.start.length || !draft.selected.finish.length) {
+      setFormError('At least one start hold and one finish hold are required.');
+      return;
+    }
+    setFormError('');
+    const confirmed = window.confirm(editingClimbId ? 'Save changes to this climb?' : 'Create this climb?');
+    if (!confirmed) return;
     const holds = (['start', 'middle', 'finish'] as HoldRole[]).flatMap((role) => draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1 })));
     const baseClimb: Climb = {
       id: editingClimbId ?? `draft-${Date.now()}`,
@@ -318,7 +335,7 @@ export function Dashboard() {
             </div>
             <div>
               <label className="label">Tap holds on the wall</label>
-              <InteractiveWall version={selectedVersion} selectedRole={selectedRole} selectedHoldSet={selectedHoldSet} onToggleHold={toggleHold} />
+              <InteractiveWall version={selectedVersion} selectedRole={selectedRole} draft={draft.selected} onToggleHold={toggleHold} />
             </div>
             <div className="grid grid-3 mobile-grid-1">
               <div className="card col"><strong>Start holds</strong><span className="small">{roleSummary('start')}</span></div>
@@ -329,9 +346,10 @@ export function Dashboard() {
               <label className="label">Notes</label>
               <textarea className="textarea" placeholder="Big move off the orange sidepull into the top jug." value={draft.notes} onChange={(e) => setDraft((current) => ({ ...current, notes: e.target.value }))} />
             </div>
+            {formError && <div className="card" style={{ borderColor: '#7f1d1d', color: '#fecaca' }}>{formError}</div>}
             <div className="row">
               <button className="button" type="button" onClick={saveDraftClimb}>{editingClimbId ? 'Update climb' : 'Save climb'}</button>
-              <button className="button secondary" type="button" onClick={() => { setDraft(emptyDraft()); setEditingClimbId(null); }}>Reset</button>
+              <button className="button secondary" type="button" onClick={() => { if (!draft.name && !draft.setterGrade && !draft.notes && !hasDraftSelections) { setDraft(emptyDraft()); setEditingClimbId(null); return; } if (window.confirm('Discard unsaved climb changes?')) { setDraft(emptyDraft()); setEditingClimbId(null); setFormError(''); } }}>Reset</button>
             </div>
             <div className="card col"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} /></div>
           </div>
@@ -486,14 +504,16 @@ function ClimbDetail({ climb, currentUserId, latestVersion, versions, compatibil
   );
 }
 
-function InteractiveWall({ version, selectedRole, selectedHoldSet, onToggleHold }: { version: WallVersion; selectedRole: HoldRole; selectedHoldSet: Set<string>; onToggleHold: (holdId: string) => void; }) {
+function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { version: WallVersion; selectedRole: HoldRole; draft: Record<HoldRole, string[]>; onToggleHold: (holdId: string) => void; }) {
   return (
     <div className="wall-preview interactive-wall">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="wall-image" src={version.imageUrl} alt={version.name} />
       {version.holds.map((hold: Hold) => {
-        const isSelected = selectedHoldSet.has(hold.canonicalHoldId);
-        return <button key={hold.id} type="button" className={`hold-button ${isSelected ? 'selected' : ''}`} title={`${hold.label} · add as ${selectedRole}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, background: hold.color }} onClick={() => onToggleHold(hold.canonicalHoldId)}><span>{hold.label}</span></button>;
+        const role = (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft[candidate].includes(hold.canonicalHoldId));
+        const isSelected = Boolean(role);
+        const roleColor = role === 'start' ? '#22c55e' : role === 'middle' ? '#f59e0b' : role === 'finish' ? '#ec4899' : '#ffffff';
+        return <button key={hold.id} type="button" className={`hold-button ${isSelected ? 'selected' : ''}`} title={`${hold.label} · add as ${selectedRole}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: roleColor }} onClick={() => onToggleHold(hold.canonicalHoldId)}><span>{hold.label}</span></button>;
       })}
     </div>
   );
