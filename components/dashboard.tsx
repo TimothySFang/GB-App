@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { ChangeEvent, PointerEvent, useMemo, useRef, useState } from 'react';
 import { mockData } from '@/lib/mock-data';
 import { averageRating, communityGrade, getCompatibility, getLatestVersion, groupClimbHolds } from '@/lib/utils';
 import { Hold, HoldRole, Climb, WallVersion, ChangeType } from '@/lib/types';
@@ -32,7 +32,7 @@ const emptyDraft = (): DraftState => ({
 export function Dashboard() {
   const data = mockData;
   const [versions, setVersions] = useState<WallVersion[]>(data.wall.versions);
-  const latest = versions[versions.length - 1];
+  const latest = getLatestVersion({ ...data, wall: { ...data.wall, versions } });
   const [activeTab, setActiveTab] = useState<TabId>('versions');
   const [selectedRole, setSelectedRole] = useState<HoldRole>('start');
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
@@ -49,7 +49,6 @@ export function Dashboard() {
   });
 
   const selectedVersion = versions.find((v) => v.id === selectedVersionId) ?? latest;
-  const latestClimbs = climbs.filter((climb) => climb.wallVersionId === latest.id);
   const inheritedClimbs = climbs.filter((climb) => climb.wallVersionId !== latest.id);
   const visibleClimbs = useMemo(
     () => climbs.filter((climb) => climb.wallVersionId === selectedVersion.id || climb.wallVersionId !== latest.id),
@@ -63,43 +62,11 @@ export function Dashboard() {
     setVersions((current) => current.map((version) => (version.id === selectedVersion.id ? updater(version) : version)));
   };
 
-  const moveLayoutHold = (dx: number, dy: number) => {
-    if (!layoutHoldId) return;
-    updateSelectedVersion((version) => ({
-      ...version,
-      holds: version.holds.map((hold) =>
-        hold.id === layoutHoldId
-          ? { ...hold, x: clamp(hold.x + dx, 6, 94), y: clamp(hold.y + dy, 6, 94), status: version.id === hold.id ? hold.status : 'moved' }
-          : hold
-      )
-    }));
-  };
-
-  const addHoldToLayout = () => {
-    const count = selectedVersion.holds.length + 1;
-    const newHold: Hold = {
-      id: `hold-${Date.now()}`,
-      canonicalHoldId: `h${Date.now()}`,
-      label: `N${count}`,
-      color: '#facc15',
-      x: 50,
-      y: 50,
-      status: 'added'
-    };
-    updateSelectedVersion((version) => ({ ...version, holds: [...version.holds, newHold] }));
-    setLayoutHoldId(newHold.id);
-  };
-
-  const removeHoldFromLayout = () => {
-    if (!layoutHoldId) return;
-    updateSelectedVersion((version) => ({ ...version, holds: version.holds.filter((hold) => hold.id !== layoutHoldId) }));
-    setLayoutHoldId(null);
-  };
-
   const createVersionFromDraft = () => {
     const source = versions.find((version) => version.id === versionDraft.sourceVersionId) ?? latest;
+    const stamp = Date.now();
     const nextVersion: WallVersion = {
-      id: `wv-${Date.now()}`,
+      id: `wv-${stamp}`,
       wallId: source.wallId,
       parentVersionId: source.id,
       name: versionDraft.name.trim() || `${source.name} Copy`,
@@ -108,7 +75,7 @@ export function Dashboard() {
       notes: versionDraft.notes.trim() || 'New layout draft',
       holds: source.holds.map((hold) => ({
         ...hold,
-        id: `${hold.id}-copy-${Date.now()}`,
+        id: `${hold.id}-copy-${stamp}`,
         status: versionDraft.changeType === 'additive' ? hold.status : 'active'
       }))
     };
@@ -123,6 +90,66 @@ export function Dashboard() {
     setLayoutHoldId(null);
   };
 
+  const onBoardImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : selectedVersion.imageUrl;
+      updateSelectedVersion((version) => ({ ...version, imageUrl: result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const updateHoldPosition = (holdId: string, x: number, y: number) => {
+    updateSelectedVersion((version) => ({
+      ...version,
+      holds: version.holds.map((hold) =>
+        hold.id === holdId
+          ? { ...hold, x: clamp(x, 4, 96), y: clamp(y, 4, 96), status: hold.status === 'added' ? 'added' : 'moved' }
+          : hold
+      )
+    }));
+  };
+
+  const addHoldAtPosition = (x: number, y: number) => {
+    const stamp = Date.now();
+    const count = selectedVersion.holds.length + 1;
+    const newHold: Hold = {
+      id: `hold-${stamp}`,
+      canonicalHoldId: `h${stamp}`,
+      label: `N${count}`,
+      color: '#facc15',
+      x,
+      y,
+      status: 'added'
+    };
+    updateSelectedVersion((version) => ({ ...version, holds: [...version.holds, newHold] }));
+    setLayoutHoldId(newHold.id);
+  };
+
+  const renameActiveHold = (label: string) => {
+    if (!layoutHoldId) return;
+    updateSelectedVersion((version) => ({
+      ...version,
+      holds: version.holds.map((hold) => (hold.id === layoutHoldId ? { ...hold, label } : hold))
+    }));
+  };
+
+  const recolorActiveHold = (color: string) => {
+    if (!layoutHoldId) return;
+    updateSelectedVersion((version) => ({
+      ...version,
+      holds: version.holds.map((hold) => (hold.id === layoutHoldId ? { ...hold, color } : hold))
+    }));
+  };
+
+  const removeHoldFromLayout = () => {
+    if (!layoutHoldId) return;
+    updateSelectedVersion((version) => ({ ...version, holds: version.holds.filter((hold) => hold.id !== layoutHoldId) }));
+    setLayoutHoldId(null);
+  };
+
   const toggleHold = (holdId: string) => {
     setDraft((current) => {
       const next: DraftState = {
@@ -133,11 +160,7 @@ export function Dashboard() {
           finish: [...current.selected.finish]
         }
       };
-
-      for (const role of ['start', 'middle', 'finish'] as HoldRole[]) {
-        next.selected[role] = next.selected[role].filter((id) => id !== holdId);
-      }
-
+      for (const role of ['start', 'middle', 'finish'] as HoldRole[]) next.selected[role] = next.selected[role].filter((id) => id !== holdId);
       const wasInCurrentRole = current.selected[selectedRole].includes(holdId);
       if (!wasInCurrentRole) next.selected[selectedRole].push(holdId);
       return next;
@@ -146,11 +169,7 @@ export function Dashboard() {
 
   const saveDraftClimb = () => {
     if (!draft.name.trim()) return;
-
-    const holds = (['start', 'middle', 'finish'] as HoldRole[]).flatMap((role) =>
-      draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1 }))
-    );
-
+    const holds = (['start', 'middle', 'finish'] as HoldRole[]).flatMap((role) => draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1 })));
     const baseClimb: Climb = {
       id: editingClimbId ?? `draft-${Date.now()}`,
       wallVersionId: selectedVersion.id,
@@ -163,12 +182,7 @@ export function Dashboard() {
       ratings: editingClimbId ? climbs.find((c) => c.id === editingClimbId)?.ratings ?? [] : [],
       gradeVotes: editingClimbId ? climbs.find((c) => c.id === editingClimbId)?.gradeVotes ?? [] : []
     };
-
-    setClimbs((current) => {
-      if (editingClimbId) return current.map((climb) => (climb.id === editingClimbId ? baseClimb : climb));
-      return [baseClimb, ...current];
-    });
-
+    setClimbs((current) => (editingClimbId ? current.map((climb) => (climb.id === editingClimbId ? baseClimb : climb)) : [baseClimb, ...current]));
     setDraft(emptyDraft());
     setSelectedRole('start');
     setEditingClimbId(null);
@@ -195,13 +209,9 @@ export function Dashboard() {
 
   const highlightedDraftHolds = selectedVersion.holds
     .filter((hold) => selectedHoldSet.has(hold.canonicalHoldId))
-    .map((hold) => {
-      const role = (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft.selected[candidate].includes(hold.canonicalHoldId));
-      return { hold, role };
-    });
+    .map((hold) => ({ hold, role: (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft.selected[candidate].includes(hold.canonicalHoldId)) }));
 
-  const roleSummary = (role: HoldRole) =>
-    draft.selected[role].map((holdId) => selectedVersion.holds.find((hold) => hold.canonicalHoldId === holdId)?.label).filter(Boolean).join(', ') || 'None selected';
+  const roleSummary = (role: HoldRole) => draft.selected[role].map((holdId) => selectedVersion.holds.find((hold) => hold.canonicalHoldId === holdId)?.label).filter(Boolean).join(', ') || 'None selected';
 
   return (
     <div className="container col mobile-shell">
@@ -275,11 +285,7 @@ export function Dashboard() {
               <h2 className="section-title">Climb detail</h2>
               <p className="section-subtitle">See route holds and manage your own climbs.</p>
             </div>
-            {selectedClimb ? (
-              <ClimbDetail climb={selectedClimb} currentUserId={data.currentUser.id} latestVersion={latest} versions={versions} compatibility={data.compatibility} onEdit={startEditing} onDelete={deleteClimb} />
-            ) : (
-              <div className="card"><p className="small">Select a climb from the list to inspect it.</p></div>
-            )}
+            {selectedClimb ? <ClimbDetail climb={selectedClimb} currentUserId={data.currentUser.id} latestVersion={latest} versions={versions} compatibility={data.compatibility} onEdit={startEditing} onDelete={deleteClimb} /> : <div className="card"><p className="small">Select a climb from the list to inspect it.</p></div>}
           </div>
         </div>
       )}
@@ -294,12 +300,10 @@ export function Dashboard() {
               </div>
               <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
             </div>
-
             <div>
               <label className="label">Climb name</label>
               <input className="input" placeholder="ex. Compression Goblin" value={draft.name} onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))} />
             </div>
-
             <div className="grid grid-2 mobile-grid-1">
               <div>
                 <label className="label">Setter grade</label>
@@ -312,32 +316,24 @@ export function Dashboard() {
                 </div>
               </div>
             </div>
-
             <div>
               <label className="label">Tap holds on the wall</label>
               <InteractiveWall version={selectedVersion} selectedRole={selectedRole} selectedHoldSet={selectedHoldSet} onToggleHold={toggleHold} />
             </div>
-
             <div className="grid grid-3 mobile-grid-1">
               <div className="card col"><strong>Start holds</strong><span className="small">{roleSummary('start')}</span></div>
               <div className="card col"><strong>Middle holds</strong><span className="small">{roleSummary('middle')}</span></div>
               <div className="card col"><strong>Finish holds</strong><span className="small">{roleSummary('finish')}</span></div>
             </div>
-
             <div>
               <label className="label">Notes</label>
               <textarea className="textarea" placeholder="Big move off the orange sidepull into the top jug." value={draft.notes} onChange={(e) => setDraft((current) => ({ ...current, notes: e.target.value }))} />
             </div>
-
             <div className="row">
               <button className="button" type="button" onClick={saveDraftClimb}>{editingClimbId ? 'Update climb' : 'Save climb'}</button>
               <button className="button secondary" type="button" onClick={() => { setDraft(emptyDraft()); setEditingClimbId(null); }}>Reset</button>
             </div>
-
-            <div className="card col">
-              <strong>Draft preview</strong>
-              <WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} />
-            </div>
+            <div className="card col"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} /></div>
           </div>
         </div>
       )}
@@ -349,7 +345,7 @@ export function Dashboard() {
               <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h2 className="section-title">Board layouts</h2>
-                  <p className="section-subtitle">Create a new layout version, duplicate an old one, and tweak hold positions.</p>
+                  <p className="section-subtitle">Upload a board image, tap to add holds, and drag them into place.</p>
                 </div>
                 <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
               </div>
@@ -381,18 +377,35 @@ export function Dashboard() {
             </div>
 
             <div className="card col">
-              <h2 className="section-title">Layout editor</h2>
-              <p className="section-subtitle">Tap a hold below, then nudge it around. Great enough for MVP prototype land.</p>
-              <InteractiveLayoutWall version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} />
-              <div className="row wrap-grid">
-                <button className="button secondary" type="button" onClick={() => moveLayoutHold(0, -3)}>Up</button>
-                <button className="button secondary" type="button" onClick={() => moveLayoutHold(-3, 0)}>Left</button>
-                <button className="button secondary" type="button" onClick={() => moveLayoutHold(3, 0)}>Right</button>
-                <button className="button secondary" type="button" onClick={() => moveLayoutHold(0, 3)}>Down</button>
-                <button className="button secondary" type="button" onClick={addHoldToLayout}>Add hold</button>
-                <button className="button danger" type="button" onClick={removeHoldFromLayout}>Remove hold</button>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 className="section-title">Layout editor</h2>
+                  <p className="section-subtitle">Tap empty space to create a hold. Drag holds to move them.</p>
+                </div>
+                <label className="button secondary file-button">
+                  Upload image
+                  <input type="file" accept="image/*" onChange={onBoardImageUpload} />
+                </label>
               </div>
-              <div className="small">Selected hold: {activeLayoutHold ? `${activeLayoutHold.label} (${Math.round(activeLayoutHold.x)}, ${Math.round(activeLayoutHold.y)})` : 'none'}</div>
+              <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} />
+              <div className="grid grid-2 mobile-grid-1">
+                <div className="card col">
+                  <strong>Selected hold</strong>
+                  <span className="small">{activeLayoutHold ? `${activeLayoutHold.label} @ ${Math.round(activeLayoutHold.x)}, ${Math.round(activeLayoutHold.y)}` : 'Tap a hold to edit it.'}</span>
+                  <label className="label">Label</label>
+                  <input className="input" value={activeLayoutHold?.label ?? ''} onChange={(e) => renameActiveHold(e.target.value)} disabled={!activeLayoutHold} />
+                  <label className="label">Color</label>
+                  <input className="input" type="color" value={activeLayoutHold?.color ?? '#ffffff'} onChange={(e) => recolorActiveHold(e.target.value)} disabled={!activeLayoutHold} />
+                  <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete hold</button>
+                </div>
+                <div className="card col">
+                  <strong>How it works</strong>
+                  <span className="small">- Upload a fresh board photo for this layout</span>
+                  <span className="small">- Tap the image to create a new hold</span>
+                  <span className="small">- Drag any hold to reposition it</span>
+                  <span className="small">- Tap a hold, then rename/recolor/delete it</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -486,16 +499,55 @@ function InteractiveWall({ version, selectedRole, selectedHoldSet, onToggleHold 
   );
 }
 
-function InteractiveLayoutWall({ version, activeHoldId, onSelectHold }: { version: WallVersion; activeHoldId: string | null; onSelectHold: (holdId: string) => void; }) {
+function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHold }: { version: WallVersion; activeHoldId: string | null; onSelectHold: (holdId: string) => void; onMoveHold: (holdId: string, x: number, y: number) => void; onAddHold: (x: number, y: number) => void; }) {
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ holdId: string; pointerId: number } | null>(null);
+
+  const toPercent = (clientX: number, clientY: number) => {
+    const rect = boardRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 50, y: 50 };
+    return {
+      x: ((clientX - rect.left) / rect.width) * 100,
+      y: ((clientY - rect.top) / rect.height) * 100
+    };
+  };
+
+  const handleBoardClick = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.target !== boardRef.current) return;
+    const pos = toPercent(event.clientX, event.clientY);
+    onAddHold(pos.x, pos.y);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+    const pos = toPercent(event.clientX, event.clientY);
+    onMoveHold(dragRef.current.holdId, pos.x, pos.y);
+  };
+
+  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+  };
+
   return (
-    <div className="wall-preview interactive-wall">
+    <div ref={boardRef} className="wall-preview interactive-wall board-editor" onPointerDown={handleBoardClick} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="wall-image" src={version.imageUrl} alt={version.name} />
       {version.holds.map((hold) => (
-        <button key={hold.id} type="button" className={`hold-button ${activeHoldId === hold.id ? 'selected' : ''}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, background: hold.color }} onClick={() => onSelectHold(hold.id)}>
+        <button
+          key={hold.id}
+          type="button"
+          className={`hold-button draggable ${activeHoldId === hold.id ? 'selected' : ''}`}
+          style={{ left: `${hold.x}%`, top: `${hold.y}%`, background: hold.color }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            dragRef.current = { holdId: hold.id, pointerId: event.pointerId };
+            onSelectHold(hold.id);
+          }}
+        >
           <span>{hold.label}</span>
         </button>
       ))}
+      <div className="board-helper">Tap empty space to add a hold · drag a hold to move it</div>
     </div>
   );
 }

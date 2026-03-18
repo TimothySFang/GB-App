@@ -51,6 +51,11 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .selected-panel { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(125,211,252,.35), 0 10px 30px rgba(0,0,0,.2); }
 .disabled-button { opacity: 0.55; cursor: not-allowed; }
 .wrap-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.file-button { position: relative; overflow: hidden; }
+.file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.board-editor { touch-action: none; }
+.board-helper { position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 8px 10px; border-radius: 12px; background: rgba(8, 16, 30, 0.72); color: var(--text); font-size: 12px; border: 1px solid var(--border); }
+.hold-button.draggable { touch-action: none; cursor: grab; }
 @media (max-width: 720px) {
   .container { padding: 16px; }
   .page-title { font-size: 28px; }
