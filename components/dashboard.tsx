@@ -467,14 +467,14 @@ export function Dashboard() {
         </div>
       )}
 
-      <nav className="bottom-nav">
+      <nav className="bottom-nav bottom-nav-5">
         {[
-          ['home', 'Home'],
-          ['climbs', 'Climbs'],
-          ['new', 'New'],
-          ['versions', 'Layouts'],
-          ['profile', 'Profile']
-        ].map(([id, label]) => <button key={id} className={`bottom-nav-item ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id as TabId)}>{label}</button>)}
+          ['home', '⌂'],
+          ['climbs', '🧗'],
+          ['new', '+'],
+          ['versions', '◫'],
+          ['profile', '☺']
+        ].map(([id, label]) => <button key={id} className={`bottom-nav-item compact ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id as TabId)} aria-label={id}>{label}</button>)}
       </nav>
     </div>
   );
