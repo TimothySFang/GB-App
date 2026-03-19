@@ -642,7 +642,7 @@ function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHo
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
   };
   return (
-    <div ref={boardRef} className="wall-preview wall-preview-wide interactive-wall board-editor" onPointerDown={handleBoardClick} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
+    <div ref={boardRef} className="wall-preview interactive-wall board-editor" onPointerDown={handleBoardClick} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
       <div className="wall-preview-image-layer" style={{ transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale}) rotate(${rotation}deg)` }}>
         <img className="wall-image" src={version.imageUrl} alt={version.name} />
       </div>
