@@ -1,9 +1,8 @@
 'use client';
 
 import { ChangeEvent, PointerEvent, useMemo, useRef, useState } from 'react';
-import { mockData } from '@/lib/mock-data';
 import { averageRating, communityGrade, getCompatibility, getLatestVersion, groupClimbHolds, hasSent, isFavorited } from '@/lib/utils';
-import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating } from '@/lib/types';
+import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating, DashboardData } from '@/lib/types';
 import { WallPreview } from './wall-preview';
 
 type TabId = 'home' | 'climbs' | 'new' | 'versions' | 'profile';
@@ -30,8 +29,8 @@ const emptyDraft = (): DraftState => ({
   selected: { start: [], middle: [], finish: [] }
 });
 
-export function Dashboard() {
-  const data = mockData;
+export function Dashboard({ initialData }: { initialData: DashboardData }) {
+  const data = initialData;
   const [versions, setVersions] = useState<WallVersion[]>(data.wall.versions);
   const latest = getLatestVersion({ ...data, wall: { ...data.wall, versions } });
   const [activeTab, setActiveTab] = useState<TabId>('climbs');
@@ -487,7 +486,7 @@ function ProfileColumn({ title, climbs, onOpen }: { title: string; climbs: Climb
   );
 }
 
-function FullScreenClimbPage({ climb, currentUserId, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft }: { climb: Climb; currentUserId: string; versions: WallVersion[]; latestVersion: WallVersion; compatibility: typeof mockData.compatibility; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; }) {
+function FullScreenClimbPage({ climb, currentUserId, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft }: { climb: Climb; currentUserId: string; versions: WallVersion[]; latestVersion: WallVersion; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; }) {
   const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latestVersion;
   const groups = groupClimbHolds(climb, baseVersion);
   const highlight = baseVersion.holds.filter((hold) => climb.holds.some((ref) => ref.holdId === hold.canonicalHoldId)).map((hold) => ({ hold, role: climb.holds.find((ref) => ref.holdId === hold.canonicalHoldId)?.role }));
