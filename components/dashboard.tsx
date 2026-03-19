@@ -84,7 +84,13 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     setClimbs((current) => current.map((climb) => (climb.id === climbId ? updater(climb) : climb)));
   };
 
-  const toggleFavorite = (climbId: string) => {
+  const toggleFavorite = async (climbId: string) => {
+    const res = await fetch(`/api/climbs/${climbId}/favorite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUserId })
+    });
+    if (!res.ok) return;
     updateClimb(climbId, (climb) => {
       const favorites = new Set(climb.favorites ?? []);
       if (favorites.has(currentUserId)) favorites.delete(currentUserId);
@@ -93,7 +99,13 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     });
   };
 
-  const saveRating = (climbId: string, stars: number) => {
+  const saveRating = async (climbId: string, stars: number) => {
+    const res = await fetch(`/api/climbs/${climbId}/rating`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUserId, stars })
+    });
+    if (!res.ok) return;
     updateClimb(climbId, (climb) => {
       const otherRatings = (climb.ratings ?? []).filter((rating) => rating.userId !== currentUserId);
       const nextRatings: Rating[] = [...otherRatings, { userId: currentUserId, stars }];
@@ -101,7 +113,13 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     });
   };
 
-  const markSent = (climbId: string, grade: string) => {
+  const markSent = async (climbId: string, grade: string) => {
+    const res = await fetch(`/api/climbs/${climbId}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUserId, grade })
+    });
+    if (!res.ok) return;
     updateClimb(climbId, (climb) => {
       const otherSends = (climb.sends ?? []).filter((send) => send.userId !== currentUserId);
       const otherVotes = (climb.gradeVotes ?? []).filter((vote) => vote.userId !== currentUserId);
@@ -214,6 +232,21 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       favorites: previous?.favorites ?? [],
       sends: previous?.sends ?? []
     };
+    const method = editingClimbId ? 'PATCH' : 'POST';
+    const url = editingClimbId ? `/api/climbs/${editingClimbId}` : '/api/climbs';
+    fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wallVersionId: selectedVersion.id,
+        userId: currentUserId,
+        createdByUserId: currentUserId,
+        name: draft.name.trim(),
+        setterGrade: draft.setterGrade.trim(),
+        notes: draft.notes.trim(),
+        holds
+      })
+    }).catch(() => null);
     setClimbs((current) => editingClimbId ? current.map((climb) => (climb.id === editingClimbId ? baseClimb : climb)) : [baseClimb, ...current]);
     setDraft(emptyDraft());
     setSelectedRole('start');
@@ -236,6 +269,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const deleteClimb = (climb: Climb) => {
     if (climb.createdByUserId !== currentUserId) return;
+    fetch(`/api/climbs/${climb.id}?userId=${currentUserId}`, { method: 'DELETE' }).catch(() => null);
     setClimbs((current) => current.filter((item) => item.id !== climb.id));
     if (selectedClimbId === climb.id) setSelectedClimbId(null);
     if (detailClimbId === climb.id) setDetailClimbId(null);
