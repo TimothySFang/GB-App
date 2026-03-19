@@ -158,6 +158,11 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     reader.onload = () => {
       const result = typeof reader.result === 'string' ? reader.result : selectedVersion.imageUrl;
       updateSelectedVersion((version) => ({ ...version, imageUrl: result }));
+      fetch(`/api/versions/${selectedVersion.id}/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: result })
+      }).catch(() => null);
     };
     reader.readAsDataURL(file);
   };
