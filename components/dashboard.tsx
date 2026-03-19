@@ -344,7 +344,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
           </div>
           <div className="card col">
             <h2 className="section-title">Current wall</h2>
-            <WallPreview version={selectedVersion} uniformColor="#22c55e" scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} />
+            <WallPreview version={selectedVersion} uniformColor="#22c55e" />
           </div>
         </div>
       )}
