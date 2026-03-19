@@ -54,6 +54,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     notes: '',
     sourceVersionId: latest.id
   });
+  const [layoutScale, setLayoutScale] = useState(1);
 
   const selectedVersion = versions.find((v) => v.id === selectedVersionId) ?? latest;
   const inheritedClimbs = climbs.filter((climb) => climb.wallVersionId !== latest.id);
@@ -320,7 +321,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
           </div>
           <div className="card col">
             <h2 className="section-title">Current wall</h2>
-            <WallPreview version={selectedVersion} uniformColor="#22c55e" />
+            <WallPreview version={selectedVersion} uniformColor="#22c55e" scale={layoutScale} wide />
           </div>
         </div>
       )}
@@ -421,7 +422,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               <button className="button" type="button" onClick={saveDraftClimb}>{editingClimbId ? 'Update climb' : 'Save climb'}</button>
               <button className="button secondary" type="button" onClick={() => { if (!draft.name && !draft.setterGrade && !draft.notes && !hasDraftSelections) { setDraft(emptyDraft()); setEditingClimbId(null); return; } if (window.confirm('Discard unsaved climb changes?')) { setDraft(emptyDraft()); setEditingClimbId(null); setFormError(''); } }}>Reset</button>
             </div>
-            <div className="card col"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} /></div>
+            <div className="card col"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} scale={layoutScale} wide /></div>
           </div>
         </div>
       )}
@@ -455,7 +456,12 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                   <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete hold</button>
                 </div>
               </div>
-              <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} />
+              <div>
+                <label className="label">Image zoom</label>
+                <input className="range" type="range" min="0.8" max="1.4" step="0.05" value={layoutScale} onChange={(e) => setLayoutScale(Number(e.target.value))} />
+                <div className="small">Scale: {layoutScale.toFixed(2)}x · wider board preview enabled</div>
+              </div>
+              <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={layoutScale} />
               <div className="grid grid-2 mobile-grid-1">
                 <div className="card col">
                   <strong>Selected hold</strong>
@@ -595,7 +601,7 @@ function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { versi
   );
 }
 
-function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHold }: { version: WallVersion; activeHoldId: string | null; onSelectHold: (holdId: string) => void; onMoveHold: (holdId: string, x: number, y: number) => void; onAddHold: (x: number, y: number) => void; }) {
+function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHold, scale = 1 }: { version: WallVersion; activeHoldId: string | null; onSelectHold: (holdId: string) => void; onMoveHold: (holdId: string, x: number, y: number) => void; onAddHold: (x: number, y: number) => void; scale?: number; }) {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ holdId: string; pointerId: number } | null>(null);
   const toPercent = (clientX: number, clientY: number) => {
