@@ -540,8 +540,29 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                   <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete hold</button>
                 </div>
               </div>
-              <div className="row">
-                <button className="button secondary" type="button" onClick={() => setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }))}>Reset photo</button>
+              <div>
+                <label className="label">Adjust photo</label>
+                <div className="grid grid-2 mobile-grid-1">
+                  <div>
+                    <div className="small">Zoom: {photoAdjust.scale.toFixed(2)}x</div>
+                    <input className="range" type="range" min="0.6" max="1.8" step="0.05" value={photoAdjust.scale} onChange={(e) => updatePhotoAdjust({ scale: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <div className="small">Rotate: {photoAdjust.rotation}°</div>
+                    <input className="range" type="range" min="-25" max="25" step="1" value={photoAdjust.rotation} onChange={(e) => updatePhotoAdjust({ rotation: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <div className="small">Move X: {photoAdjust.offsetX}px</div>
+                    <input className="range" type="range" min="-120" max="120" step="2" value={photoAdjust.offsetX} onChange={(e) => updatePhotoAdjust({ offsetX: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <div className="small">Move Y: {photoAdjust.offsetY}px</div>
+                    <input className="range" type="range" min="-120" max="120" step="2" value={photoAdjust.offsetY} onChange={(e) => updatePhotoAdjust({ offsetY: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <div className="row">
+                  <button className="button secondary" type="button" onClick={() => setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }))}>Reset photo</button>
+                </div>
               </div>
               <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} />
               <div className="grid grid-2 mobile-grid-1">
