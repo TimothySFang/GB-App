@@ -46,6 +46,8 @@ model User {
   climbs        Climb[]
   ratings       ClimbRating[]
   gradeVotes    ClimbGradeVote[]
+  favorites     Favorite[]
+  sends         ClimbSend[]
   createdAt     DateTime         @default(now())
 }
 
@@ -100,6 +102,8 @@ model Climb {
   holds            ClimbHold[]
   ratings          ClimbRating[]
   gradeVotes       ClimbGradeVote[]
+  favorites        Favorite[]
+  sends            ClimbSend[]
   compatibility    ClimbCompatibility[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
@@ -149,4 +153,27 @@ model ClimbCompatibility {
   targetWallVersion   WallVersion          @relation(fields: [targetWallVersionId], references: [id], onDelete: Cascade)
 
   @@unique([climbId, targetWallVersionId])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  climbId    String
+  userId     String
+  climb      Climb   @relation(fields: [climbId], references: [id], onDelete: Cascade)
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([climbId, userId])
+}
+
+model ClimbSend {
+  id         String   @id @default(cuid())
+  climbId     String
+  userId      String
+  grade       String
+  sentAt      DateTime @default(now())
+  climb       Climb    @relation(fields: [climbId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([climbId, userId])
 }

@@ -69,6 +69,11 @@ export const mockData: DashboardData = {
       gradeVotes: [
         { userId: 'u2', grade: 'V2' },
         { userId: 'u3', grade: 'V3' }
+      ],
+      favorites: ['u1'],
+      sends: [
+        { userId: 'u2', grade: 'V2', sentAt: '2026-03-14' },
+        { userId: 'u3', grade: 'V3', sentAt: '2026-03-15' }
       ]
     },
     {
@@ -86,7 +91,9 @@ export const mockData: DashboardData = {
         { holdId: 'h5', role: 'finish', order: 4 }
       ],
       ratings: [{ userId: 'u1', stars: 5 }],
-      gradeVotes: [{ userId: 'u1', grade: 'V4' }]
+      gradeVotes: [{ userId: 'u1', grade: 'V4' }],
+      favorites: ['u1', 'u3'],
+      sends: [{ userId: 'u1', grade: 'V4', sentAt: '2026-03-16' }]
     }
   ],
   compatibility: [

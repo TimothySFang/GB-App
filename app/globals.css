@@ -14,17 +14,22 @@ html, body { padding: 0; margin: 0; background: linear-gradient(180deg, #0b1020 
 a { color: inherit; text-decoration: none; }
 body { min-height: 100vh; }
 .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-.mobile-shell { padding-bottom: 110px; }
+.mobile-shell { padding-bottom: 24px; }
+.bottom-nav-spacer { height: 64px; flex: 0 0 auto; }
 .grid { display: grid; gap: 16px; }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .card { background: rgba(18,25,50,.92); border: 1px solid var(--border); border-radius: 18px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+.stats-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.stat-pill { background: #101933; border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.stat-pill strong { font-size: 18px; }
 .badge { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 10px; font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #08101e; padding: 10px 14px; font-weight: 700; cursor: pointer; }
 .button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
 .button.danger { background: #4a1d29; color: #ffe4e6; }
 .input, .select, .textarea { width: 100%; border-radius: 12px; border: 1px solid var(--border); background: #0f1630; color: var(--text); padding: 12px; }
 .textarea { min-height: 100px; resize: vertical; }
+.range { width: 100%; accent-color: var(--accent); }
 .label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
 .page-title { font-size: 34px; margin: 0 0 8px; }
 .page-subtitle { color: var(--muted); margin: 0; line-height: 1.5; }
@@ -35,13 +40,20 @@ body { min-height: 100vh; }
 .col { display: flex; flex-direction: column; gap: 12px; }
 .list { display: flex; flex-direction: column; gap: 12px; }
 .wall-preview { position: relative; width: 100%; aspect-ratio: 4 / 5; border-radius: 18px; overflow: hidden; border: 1px solid var(--border); background: radial-gradient(circle at top, #25325f, #0f1630 60%); }
-.wall-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; }
+.wall-preview-wide { aspect-ratio: 16 / 10; }
+.wall-preview-inner { position: absolute; inset: 0; transform-origin: center center; }
+.wall-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 1; user-select: none; -webkit-user-select: none; pointer-events: none; }
 .hold-dot { position: absolute; width: 16px; height: 16px; border-radius: 999px; border: 2px solid currentColor; background: transparent; transform: translate(-50%, -50%); opacity: .8; }
 .route-chip { border-radius: 999px; padding: 6px 10px; background: #101933; border: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 .small { font-size: 13px; color: var(--muted); }
 hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
-.bottom-nav { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(100% - 24px)); display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 8px; border-radius: 18px; background: rgba(9, 14, 28, 0.92); border: 1px solid var(--border); backdrop-filter: blur(12px); z-index: 50; }
+.bottom-nav { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(100% - 24px)); display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 8px; border-radius: 18px; background: rgba(9, 14, 28, 0.92); border: 1px solid var(--border); backdrop-filter: blur(12px); z-index: 50; box-shadow: 0 12px 30px rgba(0,0,0,.28); }
+.bottom-nav-5 { grid-template-columns: repeat(5, 1fr); }
 .bottom-nav-item { border: 0; border-radius: 12px; background: transparent; color: var(--muted); padding: 12px 8px; font-weight: 700; cursor: pointer; }
+.bottom-nav-item.compact { padding: 8px 2px; font-size: 16px; line-height: 1; }
+.bottom-nav-item.with-label { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.nav-icon { font-size: 16px; line-height: 1; }
+.nav-label { font-size: 9px; letter-spacing: .02em; text-transform: uppercase; }
 .bottom-nav-item.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #08101e; }
 .interactive-wall { overflow: hidden; }
 .hold-button { position: absolute; transform: translate(-50%, -50%); width: 16px; height: 16px; min-width: 16px; border-radius: 999px; border: 2px solid currentColor; background: transparent !important; color: rgba(255,255,255,.85); display: inline-flex; align-items: center; justify-content: center; padding: 0; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 10%, transparent), 0 4px 10px rgba(0,0,0,.1); opacity: .82; }
@@ -55,7 +67,7 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .file-button { position: relative; overflow: hidden; }
 .file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .board-editor { touch-action: none; }
-.board-helper { position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 8px 10px; border-radius: 12px; background: rgba(8, 16, 30, 0.72); color: var(--text); font-size: 12px; border: 1px solid var(--border); }
+.board-helper { position: absolute; top: 10px; left: 10px; padding: 4px 6px; border-radius: 8px; background: transparent; color: rgba(255,255,255,.7); font-size: 11px; border: 0; text-shadow: 0 1px 3px rgba(0,0,0,.35); }
 .hold-button.draggable { touch-action: none; cursor: grab; }
 @media (max-width: 720px) {
   .container { padding: 16px; }
@@ -63,4 +75,5 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
   .mobile-grid-1 { grid-template-columns: 1fr; }
   .bottom-nav { bottom: 10px; width: calc(100% - 16px); }
   .compact-select { width: 100%; }
+  .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
