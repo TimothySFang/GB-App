@@ -404,7 +404,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             </div>
           </div>
           <div className="card col">
-            <h2 className="section-title">Current wall</h2>
+            <h2 className="section-title">Current layout</h2>
             <WallPreview version={selectedVersion} uniformColor="#22c55e" />
           </div>
         </div>
@@ -579,7 +579,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             </div>
           </div>
           <div className="col">
-            <div className="card"><h2 className="section-title">Version timeline</h2><p className="section-subtitle">Track resets and whether older climbs still work.</p></div>
+            <div className="card"><h2 className="section-title">Layout history</h2><p className="section-subtitle">Track layout changes and whether older climbs still work.</p></div>
             <div className="list">
               {versions.map((version) => <div key={version.id} className={`card ${version.id === selectedVersion.id ? 'selected-panel' : ''}`}><div className="row" style={{ justifyContent: 'space-between' }}><strong>{version.name}</strong><span className="badge">{version.changeType}</span></div><div className="small">{version.holds.length} holds</div><p className="small">{version.notes}</p></div>)}
               {inheritedClimbs.map((climb) => {
@@ -684,7 +684,7 @@ function FullScreenClimbPage({ climb, currentUserId, versions, latestVersion, co
         <span className="route-chip">middle: {groups.middle.map((hold) => hold.label).join(', ') || '—'}</span>
         <span className="route-chip">finish: {groups.finish.map((hold) => hold.label).join(', ') || '—'}</span>
       </div>
-      {status && <div className="badge">latest version: {status.status}</div>}
+      {status && <div className="badge">current layout status: {status.status}</div>}
       <p className="small">{climb.notes || 'No notes yet.'}</p>
       <div className="grid grid-2 mobile-grid-1">
         <div className="card col">
