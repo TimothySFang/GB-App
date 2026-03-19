@@ -62,7 +62,6 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     sourceVersionId: latest.id
   });
   const [photoAdjustByVersion, setPhotoAdjustByVersion] = useState<Record<string, PhotoAdjust>>({});
-  const [isAdjustingPhoto, setIsAdjustingPhoto] = useState(false);
 
   const selectedVersion = versions.find((v) => v.id === selectedVersionId) ?? latest;
   const photoAdjust = photoAdjustByVersion[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 };
@@ -175,7 +174,6 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       const result = typeof reader.result === 'string' ? reader.result : selectedVersion.imageUrl;
       updateSelectedVersion((version) => ({ ...version, imageUrl: result }));
       setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: current[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }));
-      setIsAdjustingPhoto(true);
       fetch(`/api/versions/${selectedVersion.id}/image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -480,11 +478,9 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                 </div>
               </div>
               <div className="row">
-                <button className={`button ${isAdjustingPhoto ? '' : 'secondary'}`} type="button" onClick={() => setIsAdjustingPhoto((v) => !v)}>{isAdjustingPhoto ? 'Done adjusting' : 'Adjust photo'}</button>
                 <button className="button secondary" type="button" onClick={() => setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }))}>Reset photo</button>
               </div>
-              <div className="small">When adjust mode is on: drag with one finger to move, pinch to zoom, twist two fingers to rotate.</div>
-              <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} adjustMode={isAdjustingPhoto} onAdjustPhoto={updatePhotoAdjust} />
+              <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} />
               <div className="grid grid-2 mobile-grid-1">
                 <div className="card col">
                   <strong>Selected hold</strong>
@@ -624,72 +620,35 @@ function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { versi
   );
 }
 
-function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHold, scale = 1, offsetX = 0, offsetY = 0, rotation = 0, adjustMode = false, onAdjustPhoto }: { version: WallVersion; activeHoldId: string | null; onSelectHold: (holdId: string) => void; onMoveHold: (holdId: string, x: number, y: number) => void; onAddHold: (x: number, y: number) => void; scale?: number; offsetX?: number; offsetY?: number; rotation?: number; adjustMode?: boolean; onAdjustPhoto: (patch: Partial<PhotoAdjust>) => void; }) {
+function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHold, scale = 1, offsetX = 0, offsetY = 0, rotation = 0 }: { version: WallVersion; activeHoldId: string | null; onSelectHold: (holdId: string) => void; onMoveHold: (holdId: string, x: number, y: number) => void; onAddHold: (x: number, y: number) => void; scale?: number; offsetX?: number; offsetY?: number; rotation?: number; }) {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ holdId: string; pointerId: number } | null>(null);
-
-  const gestureRef = useRef<{
-    pointerIds: number[];
-    startDistance: number;
-    startAngle: number;
-    startMidX: number;
-    startMidY: number;
-    startScale: number;
-    startRotation: number;
-    startOffsetX: number;
-    startOffsetY: number;
-    points: Map<number, { x: number; y: number }>;
-  } | null>(null);
   const toPercent = (clientX: number, clientY: number) => {
     const rect = boardRef.current?.getBoundingClientRect();
     if (!rect) return { x: 50, y: 50 };
     return { x: ((clientX - rect.left) / rect.width) * 100, y: ((clientY - rect.top) / rect.height) * 100 };
   };
   const handleBoardClick = (event: PointerEvent<HTMLDivElement>) => {
-    if (adjustMode) return;
     if (event.target !== boardRef.current) return;
     const pos = toPercent(event.clientX, event.clientY);
     onAddHold(pos.x, pos.y);
   };
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (adjustMode && gestureRef.current) {
-      const g = gestureRef.current;
-      g.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (g.points.size === 1) {
-        const p = [...g.points.values()][0];
-        onAdjustPhoto({ offsetX: g.startOffsetX + (p.x - g.startMidX), offsetY: g.startOffsetY + (p.y - g.startMidY) });
-        return;
-      }
-      if (g.points.size >= 2) {
-        const [p1, p2] = [...g.points.values()];
-        const dx = p2.x - p1.x; const dy = p2.y - p1.y;
-        const dist = Math.hypot(dx, dy);
-        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-        const midX = (p1.x + p2.x) / 2; const midY = (p1.y + p2.y) / 2;
-        onAdjustPhoto({
-          scale: clamp(g.startScale * (dist / Math.max(g.startDistance, 1)), 0.5, 2.5),
-          rotation: g.startRotation + (angle - g.startAngle),
-          offsetX: g.startOffsetX + (midX - g.startMidX),
-          offsetY: g.startOffsetY + (midY - g.startMidY)
-        });
-        return;
-      }
-    }
     if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
     const pos = toPercent(event.clientX, event.clientY);
     onMoveHold(dragRef.current.holdId, pos.x, pos.y);
   };
   const endDrag = (event: PointerEvent<HTMLDivElement>) => {
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
-    if (gestureRef.current) {
-      gestureRef.current.points.delete(event.pointerId);
-      if (gestureRef.current.points.size === 0) gestureRef.current = null;
-    }
   };
   return (
-    <div ref={boardRef} className="wall-preview interactive-wall board-editor" onPointerDown={handleBoardClick} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
-      <img className="wall-image" src={version.imageUrl} alt={version.name} />
-      {version.holds.map((hold) => <button key={hold.id} type="button" className={`hold-button draggable ${activeHoldId === hold.id ? 'selected' : ''}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: '#22c55e' }} onPointerDown={(event) => { event.stopPropagation(); dragRef.current = { holdId: hold.id, pointerId: event.pointerId }; onSelectHold(hold.id); }}><span>{hold.label}</span></button>)}
+    <div ref={boardRef} className="wall-preview wall-preview-wide interactive-wall board-editor" onPointerDown={handleBoardClick} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
+      <div className="wall-preview-image-layer" style={{ transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale}) rotate(${rotation}deg)` }}>
+        <img className="wall-image" src={version.imageUrl} alt={version.name} />
+      </div>
+      <div className="wall-preview-inner">
+        {version.holds.map((hold) => <button key={hold.id} type="button" className={`hold-button draggable ${activeHoldId === hold.id ? 'selected' : ''}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: '#22c55e' }} onPointerDown={(event) => { event.stopPropagation(); dragRef.current = { holdId: hold.id, pointerId: event.pointerId }; onSelectHold(hold.id); }}><span>{hold.label}</span></button>)}
+      </div>
       <div className="board-helper">Tap empty space to add a hold · drag a hold to move it</div>
     </div>
   );
