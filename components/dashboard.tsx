@@ -22,6 +22,13 @@ type VersionDraft = {
   sourceVersionId: string;
 };
 
+type PhotoAdjust = {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+  rotation: number;
+};
+
 const emptyDraft = (): DraftState => ({
   name: '',
   setterGrade: '',
@@ -54,9 +61,10 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     notes: '',
     sourceVersionId: latest.id
   });
-  const [layoutScale, setLayoutScale] = useState(1);
+  const [photoAdjustByVersion, setPhotoAdjustByVersion] = useState<Record<string, PhotoAdjust>>({});
 
   const selectedVersion = versions.find((v) => v.id === selectedVersionId) ?? latest;
+  const photoAdjust = photoAdjustByVersion[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 };
   const inheritedClimbs = climbs.filter((climb) => climb.wallVersionId !== latest.id);
   const selectedHoldSet = new Set(Object.values(draft.selected).flat());
   const activeLayoutHold = selectedVersion.holds.find((hold) => hold.id === layoutHoldId) ?? null;
@@ -79,6 +87,13 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const updateSelectedVersion = (updater: (version: WallVersion) => WallVersion) => {
     setVersions((current) => current.map((version) => (version.id === selectedVersion.id ? updater(version) : version)));
+  };
+
+  const updatePhotoAdjust = (patch: Partial<PhotoAdjust>) => {
+    setPhotoAdjustByVersion((current) => ({
+      ...current,
+      [selectedVersion.id]: { ...(current[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 }), ...patch }
+    }));
   };
 
   const updateClimb = (climbId: string, updater: (climb: Climb) => Climb) => {
@@ -326,7 +341,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
           </div>
           <div className="card col">
             <h2 className="section-title">Current wall</h2>
-            <WallPreview version={selectedVersion} uniformColor="#22c55e" scale={layoutScale} />
+            <WallPreview version={selectedVersion} uniformColor="#22c55e" scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} />
           </div>
         </div>
       )}
@@ -427,7 +442,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               <button className="button" type="button" onClick={saveDraftClimb}>{editingClimbId ? 'Update climb' : 'Save climb'}</button>
               <button className="button secondary" type="button" onClick={() => { if (!draft.name && !draft.setterGrade && !draft.notes && !hasDraftSelections) { setDraft(emptyDraft()); setEditingClimbId(null); return; } if (window.confirm('Discard unsaved climb changes?')) { setDraft(emptyDraft()); setEditingClimbId(null); setFormError(''); } }}>Reset</button>
             </div>
-            <div className="card col"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} scale={layoutScale} wide /></div>
+            <div className="card col"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} wide /></div>
           </div>
         </div>
       )}
@@ -462,11 +477,30 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                 </div>
               </div>
               <div>
-                <label className="label">Image zoom</label>
-                <input className="range" type="range" min="0.8" max="1.4" step="0.05" value={layoutScale} onChange={(e) => setLayoutScale(Number(e.target.value))} />
-                <div className="small">Scale: {layoutScale.toFixed(2)}x · wider board preview enabled</div>
+                <label className="label">Adjust photo</label>
+                <div className="grid grid-2 mobile-grid-1">
+                  <div>
+                    <div className="small">Zoom: {photoAdjust.scale.toFixed(2)}x</div>
+                    <input className="range" type="range" min="0.6" max="1.8" step="0.05" value={photoAdjust.scale} onChange={(e) => updatePhotoAdjust({ scale: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <div className="small">Rotate: {photoAdjust.rotation}°</div>
+                    <input className="range" type="range" min="-25" max="25" step="1" value={photoAdjust.rotation} onChange={(e) => updatePhotoAdjust({ rotation: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <div className="small">Move X: {photoAdjust.offsetX}px</div>
+                    <input className="range" type="range" min="-120" max="120" step="2" value={photoAdjust.offsetX} onChange={(e) => updatePhotoAdjust({ offsetX: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <div className="small">Move Y: {photoAdjust.offsetY}px</div>
+                    <input className="range" type="range" min="-120" max="120" step="2" value={photoAdjust.offsetY} onChange={(e) => updatePhotoAdjust({ offsetY: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <div className="row">
+                  <button className="button secondary" type="button" onClick={() => setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }))}>Reset photo</button>
+                </div>
               </div>
-              <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={layoutScale} />
+              <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} />
               <div className="grid grid-2 mobile-grid-1">
                 <div className="card col">
                   <strong>Selected hold</strong>
@@ -606,7 +640,7 @@ function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { versi
   );
 }
 
-function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHold, scale = 1 }: { version: WallVersion; activeHoldId: string | null; onSelectHold: (holdId: string) => void; onMoveHold: (holdId: string, x: number, y: number) => void; onAddHold: (x: number, y: number) => void; scale?: number; }) {
+function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHold, scale = 1, offsetX = 0, offsetY = 0, rotation = 0 }: { version: WallVersion; activeHoldId: string | null; onSelectHold: (holdId: string) => void; onMoveHold: (holdId: string, x: number, y: number) => void; onAddHold: (x: number, y: number) => void; scale?: number; offsetX?: number; offsetY?: number; rotation?: number; }) {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ holdId: string; pointerId: number } | null>(null);
   const toPercent = (clientX: number, clientY: number) => {

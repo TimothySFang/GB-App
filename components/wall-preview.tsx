@@ -11,21 +11,29 @@ export function WallPreview({
   highlighted,
   uniformColor,
   scale = 1,
+  offsetX = 0,
+  offsetY = 0,
+  rotation = 0,
   wide = false
 }: {
   version: WallVersion;
   highlighted?: Array<{ hold: Hold; role?: HoldRole }>;
   uniformColor?: string;
   scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+  rotation?: number;
   wide?: boolean;
 }) {
   const highlights: Array<{ hold: Hold; role?: HoldRole }> = highlighted ?? version.holds.map((hold) => ({ hold }));
 
   return (
     <div className={`wall-preview ${wide ? 'wall-preview-wide' : ''}`}>
-      <div className="wall-preview-inner" style={{ transform: `scale(${scale})` }}>
+      <div className="wall-preview-image-layer" style={{ transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale}) rotate(${rotation}deg)` }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="wall-image" src={version.imageUrl} alt={version.name} />
+      </div>
+      <div className="wall-preview-inner">
         {highlights.map(({ hold, role }) => (
           <div
             key={`${hold.id}-${role ?? 'base'}`}
