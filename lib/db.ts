@@ -8,8 +8,13 @@ export async function ensureSeedData() {
   if (existing > 0) return;
 
   for (const user of mockData.users) {
-    await prisma.user.create({
-      data: {
+    await prisma.user.upsert({
+      where: { email: user.email },
+      update: {
+        displayName: user.name,
+        role: user.role as Role
+      },
+      create: {
         id: user.id,
         email: user.email,
         displayName: user.name,
