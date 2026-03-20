@@ -74,6 +74,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const activeLayoutHold = selectedVersion.holds.find((hold) => hold.id === layoutHoldId) ?? null;
   const detailClimb = climbs.find((climb) => climb.id === detailClimbId) ?? null;
   const currentUserId = data.currentUser.id;
+  const isAdminUser = data.currentUser.role === 'admin';
 
   const filteredClimbs = useMemo(() => {
     return climbs.filter((climb) => {
