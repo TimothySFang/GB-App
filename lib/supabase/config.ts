@@ -1,6 +1,4 @@
-function getEnv(name: 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_ANON_KEY') {
-  const value = process.env[name];
-
+function requireEnv(value: string | undefined, name: string) {
   if (!value) {
     throw new Error(`Missing ${name}`);
   }
@@ -9,9 +7,12 @@ function getEnv(name: 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_ANON_KE
 }
 
 export function getSupabaseUrl() {
-  return getEnv('NEXT_PUBLIC_SUPABASE_URL');
+  return requireEnv(process.env.NEXT_PUBLIC_SUPABASE_URL, 'NEXT_PUBLIC_SUPABASE_URL');
 }
 
 export function getSupabaseAnonKey() {
-  return getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  return requireEnv(
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY'
+  );
 }
