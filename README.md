@@ -24,6 +24,15 @@ cp .env.example .env
 npm run dev
 ```
 
+## Google OAuth setup
+1. Create a Supabase project and enable Google under Auth > Providers.
+2. In Google Cloud, add the Supabase callback URL shown by the provider setup screen.
+3. In Supabase Auth URL settings, add your local and deployed app URLs as redirect URLs.
+4. Fill in `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `AUTH_ALLOWLIST_EMAILS` in `.env`.
+5. Keep at least one admin email in the allowlist if you want to edit wall layouts.
+
+The app exchanges the Google OAuth code at `/auth/callback`, syncs the signed-in user into Prisma by email, and only grants app access to emails on `AUTH_ALLOWLIST_EMAILS`.
+
 ## Next implementation steps
 1. Wire auth and sessions
 2. Persist wall versions / holds / climbs with Prisma

@@ -1,6 +1,8 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { ChangeEvent, PointerEvent, useMemo, useRef, useState } from 'react';
+import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
 import { averageRating, communityGrade, getCompatibility, getLatestVersion, groupClimbHolds, hasSent, isFavorited } from '@/lib/utils';
 import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating, DashboardData } from '@/lib/types';
 import { WallPreview } from './wall-preview';
@@ -38,6 +40,7 @@ const emptyDraft = (): DraftState => ({
 
 export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const data = initialData;
+  const canManageLayouts = data.currentUser.role === 'admin';
   const [versions, setVersions] = useState<WallVersion[]>(data.wall.versions);
   const latest = getLatestVersion({ ...data, wall: { ...data.wall, versions } });
   const [activeTab, setActiveTab] = useState<TabId>('climbs');
@@ -55,6 +58,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const [detailClimbId, setDetailClimbId] = useState<string | null>(null);
   const [ratingDraft, setRatingDraft] = useState<number>(5);
   const [sendGradeDraft, setSendGradeDraft] = useState('V3');
+  const [requestError, setRequestError] = useState('');
   const [versionDraft, setVersionDraft] = useState<VersionDraft>({
     name: `${latest.name} Copy`,
     changeType: 'modified',
@@ -100,13 +104,26 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     setClimbs((current) => current.map((climb) => (climb.id === climbId ? updater(climb) : climb)));
   };
 
+  const readError = async (res: Response) => {
+    try {
+      const payload = await res.json();
+      return typeof payload.error === 'string' ? payload.error : 'Request failed';
+    } catch {
+      return 'Request failed';
+    }
+  };
+
   const toggleFavorite = async (climbId: string) => {
+    setRequestError('');
     const res = await fetch(`/api/climbs/${climbId}/favorite`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUserId })
+      headers: { 'Content-Type': 'application/json' }
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+
     updateClimb(climbId, (climb) => {
       const favorites = new Set(climb.favorites ?? []);
       if (favorites.has(currentUserId)) favorites.delete(currentUserId);
@@ -116,12 +133,17 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   };
 
   const saveRating = async (climbId: string, stars: number) => {
+    setRequestError('');
     const res = await fetch(`/api/climbs/${climbId}/rating`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUserId, stars })
+      body: JSON.stringify({ stars })
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+
     updateClimb(climbId, (climb) => {
       const otherRatings = (climb.ratings ?? []).filter((rating) => rating.userId !== currentUserId);
       const nextRatings: Rating[] = [...otherRatings, { userId: currentUserId, stars }];
@@ -130,12 +152,17 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   };
 
   const markSent = async (climbId: string, grade: string) => {
+    setRequestError('');
     const res = await fetch(`/api/climbs/${climbId}/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUserId, grade })
+      body: JSON.stringify({ grade })
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+
     updateClimb(climbId, (climb) => {
       const otherSends = (climb.sends ?? []).filter((send) => send.userId !== currentUserId);
       const otherVotes = (climb.gradeVotes ?? []).filter((vote) => vote.userId !== currentUserId);
@@ -174,11 +201,18 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       const result = typeof reader.result === 'string' ? reader.result : selectedVersion.imageUrl;
       updateSelectedVersion((version) => ({ ...version, imageUrl: result }));
       setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: current[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }));
+
       fetch(`/api/versions/${selectedVersion.id}/image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: result })
-      }).catch(() => null);
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            setRequestError(await readError(res));
+          }
+        })
+        .catch(() => setRequestError('Could not save the updated board image.'));
     };
     reader.readAsDataURL(file);
   };
@@ -231,11 +265,12 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const hasDraftSelections = Object.values(draft.selected).some((arr) => arr.length > 0);
 
-  const saveDraftClimb = () => {
+  const saveDraftClimb = async () => {
     if (!draft.name.trim()) return setFormError('Climb name is required.');
     if (!draft.setterGrade.trim()) return setFormError('Setter grade is required.');
     if (!draft.selected.start.length || !draft.selected.finish.length) return setFormError('At least one start hold and one finish hold are required.');
     setFormError('');
+    setRequestError('');
     if (!window.confirm(editingClimbId ? 'Save changes to this climb?' : 'Create this climb?')) return;
 
     const holds = (['start', 'middle', 'finish'] as HoldRole[]).flatMap((role) => draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1 })));
@@ -256,25 +291,37 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     };
     const method = editingClimbId ? 'PATCH' : 'POST';
     const url = editingClimbId ? `/api/climbs/${editingClimbId}` : '/api/climbs';
-    fetch(url, {
+    const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         wallVersionId: selectedVersion.id,
-        userId: currentUserId,
-        createdByUserId: currentUserId,
         name: draft.name.trim(),
         setterGrade: draft.setterGrade.trim(),
         notes: draft.notes.trim(),
         holds
       })
     }).catch(() => null);
-    setClimbs((current) => editingClimbId ? current.map((climb) => (climb.id === editingClimbId ? baseClimb : climb)) : [baseClimb, ...current]);
+
+    if (!res) {
+      setRequestError('Could not save the climb.');
+      return;
+    }
+
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+
+    const payload = editingClimbId ? null : await res.json();
+    const savedClimb = editingClimbId ? baseClimb : { ...baseClimb, id: payload.id };
+
+    setClimbs((current) => editingClimbId ? current.map((climb) => (climb.id === editingClimbId ? savedClimb : climb)) : [savedClimb, ...current]);
     setDraft(emptyDraft());
     setSelectedRole('start');
     setEditingClimbId(null);
-    setSelectedClimbId(baseClimb.id);
-    setDetailClimbId(baseClimb.id);
+    setSelectedClimbId(savedClimb.id);
+    setDetailClimbId(savedClimb.id);
     setActiveTab('climbs');
   };
 
@@ -289,9 +336,21 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     setActiveTab('new');
   };
 
-  const deleteClimb = (climb: Climb) => {
+  const deleteClimb = async (climb: Climb) => {
     if (climb.createdByUserId !== currentUserId) return;
-    fetch(`/api/climbs/${climb.id}?userId=${currentUserId}`, { method: 'DELETE' }).catch(() => null);
+    setRequestError('');
+
+    const res = await fetch(`/api/climbs/${climb.id}`, { method: 'DELETE' }).catch(() => null);
+    if (!res) {
+      setRequestError('Could not delete the climb.');
+      return;
+    }
+
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+
     setClimbs((current) => current.filter((item) => item.id !== climb.id));
     if (selectedClimbId === climb.id) setSelectedClimbId(null);
     if (detailClimbId === climb.id) setDetailClimbId(null);
@@ -306,6 +365,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   if (detailClimb) {
     return (
       <div className="container col mobile-shell">
+        <SessionHeader name={data.currentUser.name} email={data.currentUser.email} role={data.currentUser.role} />
+        {requestError ? <div className="card auth-error">{requestError}</div> : null}
         <button className="button secondary" onClick={() => setDetailClimbId(null)}>← Back to climbs</button>
         <FullScreenClimbPage
           climb={detailClimb}
@@ -329,6 +390,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   return (
     <div className="container col mobile-shell">
+      <SessionHeader name={data.currentUser.name} email={data.currentUser.email} role={data.currentUser.role} />
+      {requestError ? <div className="card auth-error">{requestError}</div> : null}
       {activeTab === 'home' && (
         <div className="grid grid-2 mobile-grid-1">
           <div className="card col">
@@ -448,7 +511,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         </div>
       )}
 
-      {activeTab === 'versions' && (
+      {activeTab === 'versions' && canManageLayouts && (
         <div className="grid grid-2 mobile-grid-1">
           <div className="col">
             <div className="card col">
@@ -516,12 +579,12 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       )}
 
       <div className="bottom-nav-spacer" />
-      <nav className="bottom-nav bottom-nav-5">
+      <nav className={`bottom-nav ${canManageLayouts ? 'bottom-nav-5' : 'bottom-nav-4'}`}>
         {[
           ['home', '⌂', 'Home'],
           ['climbs', '◇', 'Climbs'],
           ['new', '＋', 'New'],
-          ['versions', '◫', 'Layouts'],
+          ...(canManageLayouts ? [['versions', '◫', 'Layouts'] as const] : []),
           ['profile', '◎', 'Profile']
         ].map(([id, icon, label]) => (
           <button key={id} className={`bottom-nav-item compact with-label ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id as TabId)} aria-label={label}>
@@ -530,6 +593,34 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
           </button>
         ))}
       </nav>
+    </div>
+  );
+}
+
+function SessionHeader({ name, email, role }: { name: string; email: string; role: DashboardData['currentUser']['role'] }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+
+  const signOut = async () => {
+    setPending(true);
+    const supabase = createBrowserSupabaseClient();
+    await supabase.auth.signOut();
+    router.refresh();
+    setPending(false);
+  };
+
+  return (
+    <div className="card session-card">
+      <div>
+        <div className="section-title">GB App</div>
+        <div className="small">{name} · {email}</div>
+      </div>
+      <div className="row">
+        <span className="badge">{role}</span>
+        <button className="button secondary" type="button" disabled={pending} onClick={signOut}>
+          {pending ? 'Signing out…' : 'Sign out'}
+        </button>
+      </div>
     </div>
   );
 }

@@ -134,10 +134,11 @@ export async function ensureSeedData() {
   }
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(currentUserId: string): Promise<DashboardData> {
   await ensureSeedData();
 
   const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
+  const currentUser = users.find((user) => user.id === currentUserId);
   const walls = await prisma.wall.findMany({
     include: {
       versions: {
@@ -164,12 +165,16 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const compatibility = await prisma.climbCompatibility.findMany({ orderBy: { climbId: 'asc' } });
 
+  if (!currentUser) {
+    throw new Error('Current user not found');
+  }
+
   return {
     currentUser: {
-      id: users[0].id,
-      name: users[0].displayName,
-      email: users[0].email,
-      role: users[0].role === 'admin' ? 'admin' : 'member'
+      id: currentUser.id,
+      name: currentUser.displayName,
+      email: currentUser.email,
+      role: currentUser.role === 'admin' ? 'admin' : 'member'
     },
     users: users.map((user) => ({
       id: user.id,
