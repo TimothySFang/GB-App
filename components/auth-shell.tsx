@@ -18,7 +18,10 @@ export function AuthShell(props: AuthShellProps) {
     setError('');
 
     const supabase = createBrowserSupabaseClient();
-    const redirectTo = `${window.location.origin}/auth/callback?next=/`;
+    const { protocol, hostname, port } = window.location;
+    const normalizedHost = hostname === '0.0.0.0' || hostname === 'localhost' ? '49.12.224.70' : hostname;
+    const origin = `${protocol}//${normalizedHost}${port ? `:${port}` : ''}`;
+    const redirectTo = `${origin}/auth/callback?next=/`;
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo }
