@@ -4,23 +4,10 @@ import type { User } from '@prisma/client';
 
 export type AuthState =
   | { status: 'signed_out' }
-  | { status: 'not_allowed'; email: string }
   | { status: 'authenticated'; user: User };
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
-}
-
-function getAllowedEmails() {
-  return (process.env.AUTH_ALLOWLIST_EMAILS ?? '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map(normalizeEmail);
-}
-
-function isEmailAllowed(email: string) {
-  return getAllowedEmails().includes(normalizeEmail(email));
 }
 
 function getDisplayName(email: string, metadata: Record<string, unknown> | undefined) {
@@ -39,9 +26,6 @@ export async function getAuthState(): Promise<AuthState> {
   }
 
   const email = normalizeEmail(authUser.email);
-  if (!isEmailAllowed(email)) {
-    return { status: 'not_allowed', email };
-  }
 
   const user = await prisma.user.upsert({
     where: { email },

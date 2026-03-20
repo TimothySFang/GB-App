@@ -13,10 +13,6 @@ export default async function Page() {
     return <AuthShell mode="sign_in" />;
   }
 
-  if (authState.status === 'not_allowed') {
-    return <AuthShell mode="access_denied" email={authState.email} />;
-  }
-
   const data = await getDashboardData(authState.user.id);
   return <Dashboard initialData={data} />;
 }
