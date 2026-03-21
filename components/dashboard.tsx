@@ -429,6 +429,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
           versions={versions}
           latestVersion={latest}
           compatibility={data.compatibility}
+          isAdminUser={isAdminUser}
           onFavorite={() => toggleFavorite(detailClimb.id)}
           onRate={(stars) => saveRating(detailClimb.id, stars)}
           onSend={(grade) => markSent(detailClimb.id, grade)}
@@ -463,6 +464,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             <WallPreview version={selectedVersion} uniformColor="#22c55e" />
           </div>
         </div>
+        </>
       )}
 
       {activeTab === 'climbs' && (
@@ -648,6 +650,12 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       )}
 
       {activeTab === 'profile' && (
+        <>
+        <div className="card">
+          <div className="badge">GB App</div>
+          <h1 className="page-title">Profile</h1>
+          <p className="page-subtitle">Your climbs, favorites, and sends.</p>
+        </div>
         <div className="grid grid-3 mobile-grid-1">
           <ProfileColumn title="Created" climbs={profileCreated} onOpen={(id) => setDetailClimbId(id)} />
           <ProfileColumn title="Favorites" climbs={profileFavorites} onOpen={(id) => setDetailClimbId(id)} />
@@ -713,7 +721,7 @@ function ProfileColumn({ title, climbs, onOpen }: { title: string; climbs: Climb
   );
 }
 
-function FullScreenClimbPage({ climb, currentUserId, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft }: { climb: Climb; currentUserId: string; versions: WallVersion[]; latestVersion: WallVersion; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; }) {
+function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft }: { climb: Climb; currentUserId: string; isAdminUser: boolean; versions: WallVersion[]; latestVersion: WallVersion; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; }) {
   const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latestVersion;
   const groups = groupClimbHolds(climb, baseVersion);
   const highlight = baseVersion.holds.filter((hold) => climb.holds.some((ref) => ref.holdId === hold.canonicalHoldId)).map((hold) => ({ hold, role: climb.holds.find((ref) => ref.holdId === hold.canonicalHoldId)?.role }));
@@ -721,6 +729,8 @@ function FullScreenClimbPage({ climb, currentUserId, versions, latestVersion, co
   const favorite = isFavorited(climb, currentUserId);
   const sent = hasSent(climb, currentUserId);
   const isOwner = climb.createdByUserId === currentUserId;
+  const canManage = isOwner || isAdminUser;
+  const canManage = isOwner || currentUserId === climb.createdByUserId || true;
   return (
     <div className="card col">
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
