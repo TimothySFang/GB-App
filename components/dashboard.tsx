@@ -249,6 +249,22 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     setLayoutHoldId(null);
   };
 
+  const deleteSelectedLayout = async () => {
+    if (!isAdminUser) return;
+    if (!window.confirm('Delete this layout and all climbs under it?')) return;
+    if (!window.confirm('Are you absolutely sure? This cannot be undone.')) return;
+
+    const res = await fetch(`/api/layouts/${selectedVersion.id}?userId=${currentUserId}`, { method: 'DELETE' });
+    if (!res.ok) return;
+
+    setVersions((current) => current.filter((version) => version.id !== selectedVersion.id));
+    setClimbs((current) => current.filter((climb) => climb.wallVersionId !== selectedVersion.id));
+    const remaining = versions.filter((version) => version.id !== selectedVersion.id);
+    if (remaining.length) {
+      setSelectedVersionId(remaining[remaining.length - 1].id);
+    }
+  };
+
   const toggleHold = (holdId: string) => {
     setDraft((current) => {
       const next: DraftState = { ...current, selected: { start: [...current.selected.start], middle: [...current.selected.middle], finish: [...current.selected.finish] } };
@@ -539,6 +555,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                 <div className="row">
                   <label className="button secondary file-button">Upload image<input type="file" accept="image/*" onChange={onBoardImageUpload} /></label>
                   <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete hold</button>
+                  <button className="button danger" type="button" onClick={deleteSelectedLayout}>Delete layout</button>
                 </div>
               </div>
               <div>
