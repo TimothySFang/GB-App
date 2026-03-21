@@ -24,6 +24,12 @@ type VersionDraft = {
   sourceVersionId: string;
 };
 
+type LayoutEditDraft = {
+  name: string;
+  changeType: ChangeType;
+  notes: string;
+};
+
 type PhotoAdjust = {
   scale: number;
   offsetX: number;
@@ -64,6 +70,12 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     changeType: 'modified',
     notes: '',
     sourceVersionId: latest.id
+  });
+  const [editingLayoutMeta, setEditingLayoutMeta] = useState(false);
+  const [layoutEditDraft, setLayoutEditDraft] = useState<LayoutEditDraft>({
+    name: latest.name,
+    changeType: latest.changeType,
+    notes: latest.notes
   });
   const [photoAdjustByVersion, setPhotoAdjustByVersion] = useState<Record<string, PhotoAdjust>>({});
 
@@ -247,6 +259,32 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     if (!layoutHoldId) return;
     updateSelectedVersion((version) => ({ ...version, holds: version.holds.filter((hold) => hold.id !== layoutHoldId) }));
     setLayoutHoldId(null);
+  };
+
+  const startEditLayoutMeta = () => {
+    setLayoutEditDraft({ name: selectedVersion.name, changeType: selectedVersion.changeType, notes: selectedVersion.notes });
+    setEditingLayoutMeta(true);
+  };
+
+  const saveLayoutMeta = async () => {
+    const res = await fetch(`/api/layouts/${selectedVersion.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: currentUserId,
+        name: layoutEditDraft.name,
+        changeType: layoutEditDraft.changeType,
+        notes: layoutEditDraft.notes
+      })
+    });
+    if (!res.ok) return;
+    updateSelectedVersion((version) => ({
+      ...version,
+      name: layoutEditDraft.name,
+      changeType: layoutEditDraft.changeType,
+      notes: layoutEditDraft.notes
+    }));
+    setEditingLayoutMeta(false);
   };
 
   const deleteSelectedLayout = async () => {
