@@ -66,6 +66,7 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .hold-button span { display: none; }
 .hold-button.selected { outline: 3px solid rgba(125,211,252,.2); transform: translate(-50%, -50%) scale(1.06); opacity: 1; }
 .compact-select { width: auto; min-width: 150px; }
+.compact-field { min-width: 190px; }
 .climb-list-button { width: 100%; text-align: left; }
 .selected-panel { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(125,211,252,.35), 0 10px 30px rgba(0,0,0,.2); }
 .disabled-button { opacity: 0.55; cursor: not-allowed; }
@@ -85,6 +86,7 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
   .nav-icon { font-size: 14px; }
   .nav-label { font-size: 7px; }
   .compact-select { width: 100%; }
+  .compact-field { width: 100%; min-width: 0; }
   .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .session-card { align-items: flex-start; flex-direction: column; }
 }

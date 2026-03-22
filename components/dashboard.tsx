@@ -90,13 +90,14 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const filteredClimbs = useMemo(() => {
     return climbs.filter((climb) => {
+      const matchesLayout = climb.wallVersionId === selectedVersionId;
       const matchesSearch = climb.name.toLowerCase().includes(climbSearch.toLowerCase()) || climb.createdByName.toLowerCase().includes(climbSearch.toLowerCase());
       const matchesGrade = gradeFilter === 'all' || climb.setterGrade === gradeFilter || communityGrade(climb) === gradeFilter;
       const matchesFavorite = climbFilter !== 'favorites' || isFavorited(climb, currentUserId);
       const matchesSent = climbFilter !== 'sent' || hasSent(climb, currentUserId);
-      return matchesSearch && matchesGrade && matchesFavorite && matchesSent;
+      return matchesLayout && matchesSearch && matchesGrade && matchesFavorite && matchesSent;
     });
-  }, [climbs, climbSearch, gradeFilter, climbFilter, currentUserId]);
+  }, [climbs, climbSearch, gradeFilter, climbFilter, currentUserId, selectedVersionId]);
 
   const profileCreated = climbs.filter((climb) => climb.createdByUserId === currentUserId);
   const profileFavorites = climbs.filter((climb) => isFavorited(climb, currentUserId));
@@ -392,8 +393,10 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   };
 
   const deleteClimb = async (climb: Climb) => {
-    if (climb.createdByUserId !== currentUserId) return;
+    if (climb.createdByUserId !== currentUserId && !isAdminUser) return;
     setRequestError('');
+
+    if (!window.confirm(`Delete "${climb.name}"?`)) return;
 
     const res = await fetch(`/api/climbs/${climb.id}`, { method: 'DELETE' }).catch(() => null);
     if (!res) {
@@ -420,7 +423,6 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   if (detailClimb) {
     return (
       <div className="container col mobile-shell">
-        <SessionHeader name={data.currentUser.name} email={data.currentUser.email} role={data.currentUser.role} />
         {requestError ? <div className="card auth-error">{requestError}</div> : null}
         <button className="button secondary" onClick={() => setDetailClimbId(null)}>← Back to climbs</button>
         <FullScreenClimbPage
@@ -446,7 +448,6 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   return (
     <div className="container col mobile-shell">
-      <SessionHeader name={data.currentUser.name} email={data.currentUser.email} role={data.currentUser.role} />
       {requestError ? <div className="card auth-error">{requestError}</div> : null}
       {activeTab === 'home' && (
         <div className="grid grid-2 mobile-grid-1">
@@ -460,11 +461,19 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             </div>
           </div>
           <div className="card col">
-            <h2 className="section-title">Current layout</h2>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 className="section-title">Current layout</h2>
+                <p className="section-subtitle">Preview any saved layout from the homepage.</p>
+              </div>
+              <div className="compact-field">
+                <label className="label">Layout to preview</label>
+                <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+              </div>
+            </div>
             <WallPreview version={selectedVersion} uniformColor="#22c55e" />
           </div>
         </div>
-        </>
       )}
 
       {activeTab === 'climbs' && (
@@ -475,7 +484,10 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                 <h2 className="section-title">Search & filters</h2>
                 <p className="section-subtitle">Search by climb name, filter by grade, favorites, or sent status.</p>
               </div>
-              <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+              <div className="compact-field">
+                <label className="label">Layout filter</label>
+                <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+              </div>
             </div>
             <div className="grid grid-3 mobile-grid-1">
               <input className="input" placeholder="Search climbs or setters" value={climbSearch} onChange={(e) => setClimbSearch(e.target.value)} />
@@ -529,7 +541,10 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                 <h2 className="section-title">{editingClimbId ? 'Edit climb' : 'New climb'}</h2>
                 <p className="section-subtitle">Pick a role, tap holds on the wall, and save the climb into local prototype state.</p>
               </div>
-              <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+              <div className="compact-field">
+                <label className="label">Layout for this climb</label>
+                <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+              </div>
             </div>
             <div>
               <label className="label">Climb name</label>
@@ -575,13 +590,19 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h2 className="section-title">Board layouts</h2>
-                  <p className="section-subtitle">Upload a board image, tap to add holds, and drag them into place.</p>
+                  <p className="section-subtitle">Choose which saved layout you are editing, then upload a board image, add holds, and drag them into place.</p>
                 </div>
-                <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+                <div className="compact-field">
+                  <label className="label">Layout to edit</label>
+                  <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+                </div>
               </div>
               <div className="grid grid-2 mobile-grid-1">
                 <div><label className="label">New layout name</label><input className="input" value={versionDraft.name} onChange={(e) => setVersionDraft((current) => ({ ...current, name: e.target.value }))} /></div>
-                <div><label className="label">Source layout</label><VersionSelect versions={versions} value={versionDraft.sourceVersionId} onChange={(value) => setVersionDraft((current) => ({ ...current, sourceVersionId: value }))} /></div>
+                <div className="col" style={{ gap: 8 }}>
+                  <div><label className="label">Source layout to copy from</label><VersionSelect versions={versions} value={versionDraft.sourceVersionId} onChange={(value) => setVersionDraft((current) => ({ ...current, sourceVersionId: value }))} /></div>
+                  <span className="small">This decides which existing layout photo and hold map the new layout starts from.</span>
+                </div>
               </div>
               <div className="grid grid-2 mobile-grid-1">
                 <div><label className="label">Change type</label><select className="select" value={versionDraft.changeType} onChange={(e) => setVersionDraft((current) => ({ ...current, changeType: e.target.value as ChangeType }))}><option value="additive">additive</option><option value="modified">modified</option><option value="reset">reset</option></select></div>
@@ -651,16 +672,18 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
       {activeTab === 'profile' && (
         <>
-        <div className="card">
-          <div className="badge">GB App</div>
-          <h1 className="page-title">Profile</h1>
-          <p className="page-subtitle">Your climbs, favorites, and sends.</p>
-        </div>
-        <div className="grid grid-3 mobile-grid-1">
-          <ProfileColumn title="Created" climbs={profileCreated} onOpen={(id) => setDetailClimbId(id)} />
-          <ProfileColumn title="Favorites" climbs={profileFavorites} onOpen={(id) => setDetailClimbId(id)} />
-          <ProfileColumn title="Sent" climbs={profileSent} onOpen={(id) => setDetailClimbId(id)} />
-        </div>
+          <SessionHeader name={data.currentUser.name} email={data.currentUser.email} role={data.currentUser.role} />
+          <div className="card">
+            <div className="badge">GB App</div>
+            <h1 className="page-title">Profile</h1>
+            <p className="page-subtitle">Your climbs, favorites, and sends.</p>
+          </div>
+          <div className="grid grid-3 mobile-grid-1">
+            <ProfileColumn title="Created" climbs={profileCreated} onOpen={(id) => setDetailClimbId(id)} />
+            <ProfileColumn title="Favorites" climbs={profileFavorites} onOpen={(id) => setDetailClimbId(id)} />
+            <ProfileColumn title="Sent" climbs={profileSent} onOpen={(id) => setDetailClimbId(id)} />
+          </div>
+        </>
       )}
 
       <div className="bottom-nav-spacer" />
@@ -730,7 +753,6 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
   const sent = hasSent(climb, currentUserId);
   const isOwner = climb.createdByUserId === currentUserId;
   const canManage = isOwner || isAdminUser;
-  const canManage = isOwner || currentUserId === climb.createdByUserId || true;
   return (
     <div className="card col">
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -774,7 +796,7 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
       </div>
       <div className="row">
         <button className={`button ${isOwner ? '' : 'secondary disabled-button'}`} onClick={onEdit} disabled={!isOwner}>Edit climb</button>
-        <button className={`button danger ${isOwner ? '' : 'disabled-button'}`} onClick={onDelete} disabled={!isOwner}>Delete climb</button>
+        <button className={`button danger ${canManage ? '' : 'disabled-button'}`} onClick={onDelete} disabled={!canManage}>Delete climb</button>
       </div>
     </div>
   );

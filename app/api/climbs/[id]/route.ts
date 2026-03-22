@@ -51,7 +51,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params;
   const existing = await prisma.climb.findUnique({ where: { id: id } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (existing.createdByUserId !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (existing.createdByUserId !== user.id && user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   await prisma.climb.delete({ where: { id: id } });
   return NextResponse.json({ ok: true });
 }
