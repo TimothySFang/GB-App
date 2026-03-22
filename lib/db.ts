@@ -40,6 +40,10 @@ export async function ensureSeedData() {
         name: version.name,
         changeType: version.changeType as ChangeType,
         imageUrl: version.imageUrl,
+        photoScale: version.photoScale ?? 1,
+        photoOffsetX: version.photoOffsetX ?? 0,
+        photoOffsetY: version.photoOffsetY ?? 0,
+        photoRotation: version.photoRotation ?? 0,
         notes: version.notes
       }
     });
@@ -198,6 +202,10 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
         name: version.name,
         changeType: version.changeType,
         imageUrl: version.imageUrl ?? '',
+        photoScale: version.photoScale,
+        photoOffsetX: version.photoOffsetX,
+        photoOffsetY: version.photoOffsetY,
+        photoRotation: version.photoRotation,
         notes: version.notes ?? '',
         holds: version.holds.map((hold) => ({
           id: hold.id,

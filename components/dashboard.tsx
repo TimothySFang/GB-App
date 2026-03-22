@@ -25,19 +25,6 @@ type VersionDraft = {
   sourceVersionId: string;
 };
 
-type LayoutEditDraft = {
-  name: string;
-  changeType: ChangeType;
-  notes: string;
-};
-
-type PhotoAdjust = {
-  scale: number;
-  offsetX: number;
-  offsetY: number;
-  rotation: number;
-};
-
 const emptyDraft = (): DraftState => ({
   name: '',
   setterGrade: '',
@@ -48,7 +35,6 @@ const emptyDraft = (): DraftState => ({
 export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const data = initialData;
   const canManageLayouts = data.currentUser.role === 'admin';
-  const persistedVersionIds = useMemo(() => new Set(data.wall.versions.map((version) => version.id)), [data.wall.versions]);
   const [versions, setVersions] = useState<WallVersion[]>(data.wall.versions);
   const latest = getLatestVersion({ ...data, wall: { ...data.wall, versions } });
   const hasLayouts = versions.length > 0;
@@ -69,22 +55,21 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const [sendGradeDraft, setSendGradeDraft] = useState('V3');
   const [requestError, setRequestError] = useState('');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('edit');
+  const [savingLayout, setSavingLayout] = useState(false);
+  const [dirtyLayoutIds, setDirtyLayoutIds] = useState<Set<string>>(new Set());
   const [versionDraft, setVersionDraft] = useState<VersionDraft>({
     name: latest ? `${latest.name} Copy` : 'New Layout',
     changeType: 'modified',
     notes: '',
     sourceVersionId: latest?.id ?? ''
   });
-  const [editingLayoutMeta, setEditingLayoutMeta] = useState(false);
-  const [layoutEditDraft, setLayoutEditDraft] = useState<LayoutEditDraft>({
-    name: latest?.name ?? '',
-    changeType: latest?.changeType ?? 'modified',
-    notes: latest?.notes ?? ''
-  });
-  const [photoAdjustByVersion, setPhotoAdjustByVersion] = useState<Record<string, PhotoAdjust>>({});
-
   const selectedVersion = versions.find((v) => v.id === selectedVersionId) ?? latest ?? null;
-  const photoAdjust = selectedVersion ? (photoAdjustByVersion[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 }) : { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 };
+  const photoAdjust = selectedVersion ? {
+    scale: selectedVersion.photoScale,
+    offsetX: selectedVersion.photoOffsetX,
+    offsetY: selectedVersion.photoOffsetY,
+    rotation: selectedVersion.photoRotation
+  } : { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 };
   const inheritedClimbs = latest ? climbs.filter((climb) => climb.wallVersionId !== latest.id) : [];
   const selectedHoldSet = new Set(Object.values(draft.selected).flat());
   const activeLayoutHold = selectedVersion?.holds.find((hold) => hold.id === layoutHoldId) ?? null;
@@ -106,18 +91,39 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const profileCreated = climbs.filter((climb) => climb.createdByUserId === currentUserId);
   const profileFavorites = climbs.filter((climb) => isFavorited(climb, currentUserId));
   const profileSent = climbs.filter((climb) => hasSent(climb, currentUserId));
+  const layoutHasUnsavedChanges = selectedVersion ? dirtyLayoutIds.has(selectedVersion.id) : false;
 
-  const updateSelectedVersion = (updater: (version: WallVersion) => WallVersion) => {
-    if (!selectedVersion) return;
-    setVersions((current) => current.map((version) => (version.id === selectedVersion.id ? updater(version) : version)));
+  const markLayoutDirty = (versionId: string) => {
+    setDirtyLayoutIds((current) => {
+      const next = new Set(current);
+      next.add(versionId);
+      return next;
+    });
   };
 
-  const updatePhotoAdjust = (patch: Partial<PhotoAdjust>) => {
+  const markLayoutClean = (versionId: string) => {
+    setDirtyLayoutIds((current) => {
+      const next = new Set(current);
+      next.delete(versionId);
+      return next;
+    });
+  };
+
+  const updateSelectedVersion = (updater: (version: WallVersion) => WallVersion, markDirty = false) => {
     if (!selectedVersion) return;
-    setPhotoAdjustByVersion((current) => ({
-      ...current,
-      [selectedVersion.id]: { ...(current[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 }), ...patch }
-    }));
+    setVersions((current) => current.map((version) => (version.id === selectedVersion.id ? updater(version) : version)));
+    if (markDirty) markLayoutDirty(selectedVersion.id);
+  };
+
+  const updatePhotoAdjust = (patch: Partial<{ scale: number; offsetX: number; offsetY: number; rotation: number }>) => {
+    if (!selectedVersion) return;
+    updateSelectedVersion((version) => ({
+      ...version,
+      photoScale: patch.scale ?? version.photoScale,
+      photoOffsetX: patch.offsetX ?? version.photoOffsetX,
+      photoOffsetY: patch.offsetY ?? version.photoOffsetY,
+      photoRotation: patch.rotation ?? version.photoRotation
+    }), true);
   };
 
   const updateClimb = (climbId: string, updater: (climb: Climb) => Climb) => {
@@ -194,21 +200,51 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     });
   };
 
-  const createVersionFromDraft = () => {
+  const createVersionFromDraft = async () => {
     const source = versions.find((version) => version.id === versionDraft.sourceVersionId) ?? latest ?? null;
-    const stamp = Date.now();
-    const nextVersion: WallVersion = {
-      id: `wv-${stamp}`,
-      wallId: source?.wallId ?? data.wall.id,
-      parentVersionId: source?.id,
-      name: versionDraft.name.trim() || (source ? `${source.name} Copy` : 'New Layout'),
-      changeType: versionDraft.changeType,
-      imageUrl: source?.imageUrl ?? '',
-      notes: versionDraft.notes.trim() || 'New layout draft',
-      holds: (source?.holds ?? []).map((hold) => ({ ...hold, id: `${hold.id}-copy-${stamp}`, status: versionDraft.changeType === 'additive' ? hold.status : 'active' }))
-    };
+    setRequestError('');
+
+    const res = await fetch('/api/layouts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wallId: data.wall.id,
+        parentVersionId: source?.id,
+        name: versionDraft.name.trim() || (source ? `${source.name} Copy` : 'New Layout'),
+        changeType: versionDraft.changeType,
+        imageUrl: source?.imageUrl ?? '',
+        photoScale: source?.photoScale ?? 1,
+        photoOffsetX: source?.photoOffsetX ?? 0,
+        photoOffsetY: source?.photoOffsetY ?? 0,
+        photoRotation: source?.photoRotation ?? 0,
+        notes: versionDraft.notes.trim() || 'New layout draft',
+        holds: (source?.holds ?? []).map((hold) => ({
+          canonicalHoldId: hold.canonicalHoldId,
+          label: hold.label,
+          color: hold.color,
+          x: hold.x,
+          y: hold.y,
+          status: versionDraft.changeType === 'additive' ? hold.status : 'active'
+        }))
+      })
+    }).catch(() => null);
+
+    if (!res) {
+      setRequestError('Could not create the layout.');
+      return;
+    }
+
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+
+    const payload = await res.json();
+    const nextVersion = payload.version as WallVersion;
+
     setVersions((current) => [...current, nextVersion]);
     setSelectedVersionId(nextVersion.id);
+    markLayoutClean(nextVersion.id);
     setVersionDraft({ name: `${nextVersion.name} Copy`, changeType: 'modified', notes: '', sourceVersionId: nextVersion.id });
     setLayoutHoldId(null);
     setLayoutMode('edit');
@@ -221,25 +257,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     const reader = new FileReader();
     reader.onload = () => {
       const result = typeof reader.result === 'string' ? reader.result : selectedVersion.imageUrl;
-      updateSelectedVersion((version) => ({ ...version, imageUrl: result }));
-      setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: current[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }));
+      updateSelectedVersion((version) => ({ ...version, imageUrl: result }), true);
       setRequestError('');
-
-      if (!persistedVersionIds.has(selectedVersion.id)) {
-        return;
-      }
-
-      fetch(`/api/versions/${selectedVersion.id}/image`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: result })
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            setRequestError(await readError(res));
-          }
-        })
-        .catch(() => setRequestError('Could not save the updated board image.'));
     };
     reader.readAsDataURL(file);
   };
@@ -248,7 +267,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     updateSelectedVersion((version) => ({
       ...version,
       holds: version.holds.map((hold) => hold.id === holdId ? { ...hold, x: clamp(x, 4, 96), y: clamp(y, 4, 96), status: hold.status === 'added' ? 'added' : 'moved' } : hold)
-    }));
+    }), true);
   };
 
   const addHoldAtPosition = (x: number, y: number) => {
@@ -257,52 +276,72 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     const stamp = Date.now();
     const count = selectedVersion.holds.length + 1;
     const newHold: Hold = { id: `hold-${stamp}`, canonicalHoldId: `h${stamp}`, label: `N${count}`, color: '#facc15', x, y, status: 'added' };
-    updateSelectedVersion((version) => ({ ...version, holds: [...version.holds, newHold] }));
+    updateSelectedVersion((version) => ({ ...version, holds: [...version.holds, newHold] }), true);
     setLayoutHoldId(newHold.id);
   };
 
   const renameActiveHold = (label: string) => {
     if (!layoutHoldId) return;
-    updateSelectedVersion((version) => ({ ...version, holds: version.holds.map((hold) => (hold.id === layoutHoldId ? { ...hold, label } : hold)) }));
+    updateSelectedVersion((version) => ({ ...version, holds: version.holds.map((hold) => (hold.id === layoutHoldId ? { ...hold, label } : hold)) }), true);
   };
 
   const recolorActiveHold = (color: string) => {
     if (!layoutHoldId) return;
-    updateSelectedVersion((version) => ({ ...version, holds: version.holds.map((hold) => (hold.id === layoutHoldId ? { ...hold, color } : hold)) }));
+    updateSelectedVersion((version) => ({ ...version, holds: version.holds.map((hold) => (hold.id === layoutHoldId ? { ...hold, color } : hold)) }), true);
   };
 
   const removeHoldFromLayout = () => {
     if (!layoutHoldId) return;
-    updateSelectedVersion((version) => ({ ...version, holds: version.holds.filter((hold) => hold.id !== layoutHoldId) }));
+    updateSelectedVersion((version) => ({ ...version, holds: version.holds.filter((hold) => hold.id !== layoutHoldId) }), true);
     setLayoutHoldId(null);
   };
 
-  const startEditLayoutMeta = () => {
+  const saveSelectedLayout = async () => {
     if (!selectedVersion) return;
-    setLayoutEditDraft({ name: selectedVersion.name, changeType: selectedVersion.changeType, notes: selectedVersion.notes });
-    setEditingLayoutMeta(true);
-  };
+    setSavingLayout(true);
+    setRequestError('');
 
-  const saveLayoutMeta = async () => {
-    if (!selectedVersion) return;
     const res = await fetch(`/api/layouts/${selectedVersion.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId: currentUserId,
-        name: layoutEditDraft.name,
-        changeType: layoutEditDraft.changeType,
-        notes: layoutEditDraft.notes
+        name: selectedVersion.name,
+        changeType: selectedVersion.changeType,
+        notes: selectedVersion.notes,
+        imageUrl: selectedVersion.imageUrl,
+        photoScale: selectedVersion.photoScale,
+        photoOffsetX: selectedVersion.photoOffsetX,
+        photoOffsetY: selectedVersion.photoOffsetY,
+        photoRotation: selectedVersion.photoRotation,
+        holds: selectedVersion.holds.map((hold) => ({
+          id: hold.id,
+          canonicalHoldId: hold.canonicalHoldId,
+          label: hold.label,
+          color: hold.color,
+          x: hold.x,
+          y: hold.y,
+          status: hold.status
+        }))
       })
-    });
-    if (!res.ok) return;
-    updateSelectedVersion((version) => ({
-      ...version,
-      name: layoutEditDraft.name,
-      changeType: layoutEditDraft.changeType,
-      notes: layoutEditDraft.notes
-    }));
-    setEditingLayoutMeta(false);
+    }).catch(() => null);
+
+    setSavingLayout(false);
+    if (!res) {
+      setRequestError('Could not save the layout changes.');
+      return;
+    }
+
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+
+    const payload = await res.json();
+    const savedVersion = payload.version as WallVersion;
+    setVersions((current) => current.map((version) => (version.id === savedVersion.id ? savedVersion : version)));
+    markLayoutClean(savedVersion.id);
+    setLayoutHoldId((current) => savedVersion.holds.some((hold) => hold.id === current) ? current : null);
   };
 
   const deleteSelectedLayout = async () => {
@@ -328,6 +367,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       setLayoutMode('create');
       setVersionDraft((current) => ({ ...current, sourceVersionId: '' }));
     }
+    markLayoutClean(selectedVersion.id);
   };
 
   const toggleHold = (holdId: string) => {
@@ -349,6 +389,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const saveDraftClimb = async () => {
     if (!selectedVersion) return setFormError('Create a layout before saving climbs.');
+    if (layoutHasUnsavedChanges) return setFormError('Save layout changes before saving a climb on this layout.');
     if (!draft.name.trim()) return setFormError('Climb name is required.');
     if (!draft.setterGrade.trim()) return setFormError('Setter grade is required.');
     if (!draft.selected.start.length || !draft.selected.finish.length) return setFormError('At least one start hold and one finish hold are required.');
@@ -655,26 +696,35 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               </div>
             ) : (
               <div className="card col">
-                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="layout-editor-header">
                   <div>
                     <h2 className="section-title">Edit existing layout</h2>
-                    <p className="section-subtitle">Choose a saved layout, then update its image and hold positions.</p>
+                    <p className="section-subtitle">Choose a saved layout, adjust its details, then save your changes.</p>
                   </div>
-                  <div className="compact-field">
-                    <label className="label">Layout to edit</label>
-                    <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+                  <div className="layout-editor-toolbar">
+                    <div className="compact-field">
+                      <label className="label">Layout to edit</label>
+                      <VersionSelect versions={versions} value={selectedVersionId} onChange={(value) => { setSelectedVersionId(value); setLayoutHoldId(null); }} />
+                    </div>
+                    <label className="button secondary file-button">Upload image<input type="file" accept="image/*" onChange={onBoardImageUpload} /></label>
+                    <button className="button secondary" type="button" onClick={saveSelectedLayout} disabled={!selectedVersion || !layoutHasUnsavedChanges || savingLayout}>{savingLayout ? 'Saving…' : 'Save changes'}</button>
+                    <button className="button danger" type="button" onClick={deleteSelectedLayout} disabled={!selectedVersion}>Delete layout</button>
                   </div>
                 </div>
                 {!selectedVersion ? (
                   <EmptyState message="There are no layouts to edit right now. Switch to Create new layout to make the first one." />
                 ) : (
                   <>
-                <div className="row">
-                  <label className="button secondary file-button">Upload image<input type="file" accept="image/*" onChange={onBoardImageUpload} /></label>
-                  <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete hold</button>
-                  <button className="button danger" type="button" onClick={deleteSelectedLayout}>Delete layout</button>
+                <div className="grid grid-3 mobile-grid-1">
+                  <div><label className="label">Layout name</label><input className="input" value={selectedVersion.name} onChange={(e) => updateSelectedVersion((version) => ({ ...version, name: e.target.value }), true)} /></div>
+                  <div><label className="label">Change type</label><select className="select" value={selectedVersion.changeType} onChange={(e) => updateSelectedVersion((version) => ({ ...version, changeType: e.target.value as ChangeType }), true)}><option value="additive">additive</option><option value="modified">modified</option><option value="reset">reset</option></select></div>
+                  <div className="card small layout-status-card">{layoutHasUnsavedChanges ? 'Unsaved layout changes' : 'All layout changes saved'}</div>
                 </div>
                 <div>
+                  <label className="label">Notes</label>
+                  <input className="input" value={selectedVersion.notes} onChange={(e) => updateSelectedVersion((version) => ({ ...version, notes: e.target.value }), true)} />
+                </div>
+                <div className="card col">
                   <label className="label">Adjust photo</label>
                   <div className="grid grid-2 mobile-grid-1">
                     <div>
@@ -695,7 +745,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                     </div>
                   </div>
                   <div className="row">
-                    <button className="button secondary" type="button" onClick={() => setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }))}>Reset photo</button>
+                    <button className="button secondary" type="button" onClick={() => updatePhotoAdjust({ scale: 1, offsetX: 0, offsetY: 0, rotation: 0 })}>Reset photo</button>
+                    <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete selected hold</button>
                   </div>
                 </div>
                 <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} />
@@ -885,13 +936,17 @@ function VersionSelect({ versions, value, onChange }: { versions: WallVersion[];
 function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { version: WallVersion; selectedRole: HoldRole; draft: Record<HoldRole, string[]>; onToggleHold: (holdId: string) => void; }) {
   return (
     <div className="wall-preview interactive-wall">
-      <img className="wall-image" src={version.imageUrl} alt={version.name} />
-      {version.holds.map((hold: Hold) => {
-        const role = (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft[candidate].includes(hold.canonicalHoldId));
-        const isSelected = Boolean(role);
-        const roleColor = role === 'start' ? '#22c55e' : role === 'middle' ? '#f59e0b' : role === 'finish' ? '#ec4899' : '#ffffff';
-        return <button key={hold.id} type="button" className={`hold-button ${isSelected ? 'selected' : ''}`} title={`${hold.label} · add as ${selectedRole}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: roleColor }} onClick={() => onToggleHold(hold.canonicalHoldId)}><span>{hold.label}</span></button>;
-      })}
+      <div className="wall-preview-image-layer" style={{ transform: `translate(${version.photoOffsetX}px, ${version.photoOffsetY}px) scale(${version.photoScale}) rotate(${version.photoRotation}deg)` }}>
+        <img className="wall-image" src={version.imageUrl} alt={version.name} />
+      </div>
+      <div className="wall-preview-inner">
+        {version.holds.map((hold: Hold) => {
+          const role = (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft[candidate].includes(hold.canonicalHoldId));
+          const isSelected = Boolean(role);
+          const roleColor = role === 'start' ? '#22c55e' : role === 'middle' ? '#f59e0b' : role === 'finish' ? '#ec4899' : '#ffffff';
+          return <button key={hold.id} type="button" className={`hold-button ${isSelected ? 'selected' : ''}`} title={`${hold.label} · add as ${selectedRole}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: roleColor }} onClick={() => onToggleHold(hold.canonicalHoldId)}><span>{hold.label}</span></button>;
+        })}
+      </div>
     </div>
   );
 }

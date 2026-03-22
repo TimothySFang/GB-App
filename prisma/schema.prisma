@@ -67,6 +67,10 @@ model WallVersion {
   name           String
   changeType     ChangeType
   imageUrl       String?
+  photoScale     Float           @default(1)
+  photoOffsetX   Float           @default(0)
+  photoOffsetY   Float           @default(0)
+  photoRotation  Float           @default(0)
   notes          String?
   wall           Wall            @relation(fields: [wallId], references: [id], onDelete: Cascade)
   parentVersion  WallVersion?    @relation("VersionParent", fields: [parentVersionId], references: [id])

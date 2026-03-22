@@ -72,6 +72,10 @@ export type WallVersion = {
   name: string;
   changeType: ChangeType;
   imageUrl: string;
+  photoScale: number;
+  photoOffsetX: number;
+  photoOffsetY: number;
+  photoRotation: number;
   notes: string;
   holds: Hold[];
 };

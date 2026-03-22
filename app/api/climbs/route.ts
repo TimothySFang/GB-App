@@ -15,6 +15,25 @@ export async function POST(req: NextRequest) {
   }
 
   const versionHolds = await prisma.hold.findMany({ where: { wallVersionId } });
+  if (!versionHolds.length) {
+    return NextResponse.json({ error: 'Selected layout has no saved holds yet' }, { status: 400 });
+  }
+
+  const holdCreates = holds
+    .map((ref: { holdId: string; role: HoldRole; order: number }) => {
+      const hold = versionHolds.find((item) => item.canonicalHoldId === ref.holdId);
+      if (!hold) return null;
+      return {
+        holdId: hold.id,
+        role: ref.role,
+        orderIndex: ref.order
+      };
+    })
+    .filter(Boolean) as { holdId: string; role: HoldRole; orderIndex: number }[];
+
+  if (!holdCreates.length || holdCreates.length !== holds.length) {
+    return NextResponse.json({ error: 'One or more selected holds are no longer saved on this layout' }, { status: 400 });
+  }
 
   const climb = await prisma.climb.create({
     data: {
@@ -24,17 +43,7 @@ export async function POST(req: NextRequest) {
       setterGrade,
       notes,
       holds: {
-        create: holds
-          .map((ref: { holdId: string; role: HoldRole; order: number }) => {
-            const hold = versionHolds.find((item) => item.canonicalHoldId === ref.holdId);
-            if (!hold) return null;
-            return {
-              holdId: hold.id,
-              role: ref.role,
-              orderIndex: ref.order
-            };
-          })
-          .filter(Boolean) as { holdId: string; role: HoldRole; orderIndex: number }[]
+        create: holdCreates
       }
     }
   });

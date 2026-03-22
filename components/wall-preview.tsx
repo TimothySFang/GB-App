@@ -10,10 +10,10 @@ export function WallPreview({
   version,
   highlighted,
   uniformColor,
-  scale = 1,
-  offsetX = 0,
-  offsetY = 0,
-  rotation = 0,
+  scale,
+  offsetX,
+  offsetY,
+  rotation,
   wide = false
 }: {
   version: WallVersion;
@@ -26,10 +26,14 @@ export function WallPreview({
   wide?: boolean;
 }) {
   const highlights: Array<{ hold: Hold; role?: HoldRole }> = highlighted ?? version.holds.map((hold) => ({ hold }));
+  const resolvedScale = scale ?? version.photoScale;
+  const resolvedOffsetX = offsetX ?? version.photoOffsetX;
+  const resolvedOffsetY = offsetY ?? version.photoOffsetY;
+  const resolvedRotation = rotation ?? version.photoRotation;
 
   return (
     <div className={`wall-preview ${wide ? 'wall-preview-wide' : ''}`}>
-      <div className="wall-preview-image-layer" style={{ transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale}) rotate(${rotation}deg)` }}>
+      <div className="wall-preview-image-layer" style={{ transform: `translate(${resolvedOffsetX}px, ${resolvedOffsetY}px) scale(${resolvedScale}) rotate(${resolvedRotation}deg)` }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="wall-image" src={version.imageUrl} alt={version.name} />
       </div>

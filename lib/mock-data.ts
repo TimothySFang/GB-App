@@ -18,6 +18,10 @@ export const mockData: DashboardData = {
         name: 'Spring Base Set',
         changeType: 'reset',
         imageUrl: 'https://images.unsplash.com/photo-1522163182402-834f871fd851?auto=format&fit=crop&w=1200&q=80',
+        photoScale: 1,
+        photoOffsetX: 0,
+        photoOffsetY: 0,
+        photoRotation: 0,
         notes: 'Original baseline set for MVP.',
         holds: [
           { id: 'h1v1', canonicalHoldId: 'h1', label: 'A1', color: '#fb7185', x: 18, y: 72, status: 'active' },
@@ -34,6 +38,10 @@ export const mockData: DashboardData = {
         name: 'Spring + Add-ons',
         changeType: 'additive',
         imageUrl: 'https://images.unsplash.com/photo-1522163182402-834f871fd851?auto=format&fit=crop&w=1200&q=80',
+        photoScale: 1,
+        photoOffsetX: 0,
+        photoOffsetY: 0,
+        photoRotation: 0,
         notes: 'A few extra holds added for more options.',
         holds: [
           { id: 'h1v2', canonicalHoldId: 'h1', label: 'A1', color: '#fb7185', x: 18, y: 72, status: 'active' },
