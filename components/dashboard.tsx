@@ -48,6 +48,7 @@ const emptyDraft = (): DraftState => ({
 export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const data = initialData;
   const canManageLayouts = data.currentUser.role === 'admin';
+  const persistedVersionIds = useMemo(() => new Set(data.wall.versions.map((version) => version.id)), [data.wall.versions]);
   const [versions, setVersions] = useState<WallVersion[]>(data.wall.versions);
   const latest = getLatestVersion({ ...data, wall: { ...data.wall, versions } });
   const hasLayouts = versions.length > 0;
@@ -222,6 +223,11 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       const result = typeof reader.result === 'string' ? reader.result : selectedVersion.imageUrl;
       updateSelectedVersion((version) => ({ ...version, imageUrl: result }));
       setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: current[selectedVersion.id] ?? { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }));
+      setRequestError('');
+
+      if (!persistedVersionIds.has(selectedVersion.id)) {
+        return;
+      }
 
       fetch(`/api/versions/${selectedVersion.id}/image`, {
         method: 'POST',
@@ -247,6 +253,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const addHoldAtPosition = (x: number, y: number) => {
     if (!selectedVersion) return;
+    setRequestError('');
     const stamp = Date.now();
     const count = selectedVersion.holds.length + 1;
     const newHold: Hold = { id: `hold-${stamp}`, canonicalHoldId: `h${stamp}`, label: `N${count}`, color: '#facc15', x, y, status: 'added' };
@@ -898,7 +905,8 @@ function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHo
     return { x: ((clientX - rect.left) / rect.width) * 100, y: ((clientY - rect.top) / rect.height) * 100 };
   };
   const handleBoardClick = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.target !== boardRef.current) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('button')) return;
     const pos = toPercent(event.clientX, event.clientY);
     onAddHold(pos.x, pos.y);
   };
