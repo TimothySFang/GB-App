@@ -55,6 +55,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  await prisma.wallVersion.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.wallVersion.updateMany({
+      where: { parentVersionId: id },
+      data: { parentVersionId: null }
+    }),
+    prisma.wallVersion.delete({ where: { id } })
+  ]);
+
   return NextResponse.json({ ok: true });
 }

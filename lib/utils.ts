@@ -30,7 +30,7 @@ export function hasSent(climb: Climb, userId: string) {
 }
 
 export function getLatestVersion(data: DashboardData) {
-  return data.wall.versions[data.wall.versions.length - 1];
+  return data.wall.versions[data.wall.versions.length - 1] ?? null;
 }
 
 export function getCompatibility(climbId: string, versionId: string, compatibility: Compatibility[]) {
