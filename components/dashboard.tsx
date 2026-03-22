@@ -9,6 +9,7 @@ import { WallPreview } from './wall-preview';
 
 type TabId = 'home' | 'climbs' | 'new' | 'versions' | 'profile';
 type ClimbFilter = 'all' | 'favorites' | 'sent';
+type LayoutMode = 'edit' | 'create';
 
 type DraftState = {
   name: string;
@@ -65,6 +66,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const [ratingDraft, setRatingDraft] = useState<number>(5);
   const [sendGradeDraft, setSendGradeDraft] = useState('V3');
   const [requestError, setRequestError] = useState('');
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('edit');
   const [versionDraft, setVersionDraft] = useState<VersionDraft>({
     name: `${latest.name} Copy`,
     changeType: 'modified',
@@ -587,75 +589,90 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         <div className="grid grid-2 mobile-grid-1">
           <div className="col">
             <div className="card col">
-              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h2 className="section-title">Board layouts</h2>
-                  <p className="section-subtitle">Choose which saved layout you are editing, then upload a board image, add holds, and drag them into place.</p>
-                </div>
-                <div className="compact-field">
-                  <label className="label">Layout to edit</label>
-                  <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
-                </div>
+              <div>
+                <h2 className="section-title">Board layouts</h2>
+                <p className="section-subtitle">Choose whether you want to edit a saved layout or create a new one from an existing layout.</p>
               </div>
-              <div className="grid grid-2 mobile-grid-1">
-                <div><label className="label">New layout name</label><input className="input" value={versionDraft.name} onChange={(e) => setVersionDraft((current) => ({ ...current, name: e.target.value }))} /></div>
-                <div className="col" style={{ gap: 8 }}>
-                  <div><label className="label">Source layout to copy from</label><VersionSelect versions={versions} value={versionDraft.sourceVersionId} onChange={(value) => setVersionDraft((current) => ({ ...current, sourceVersionId: value }))} /></div>
-                  <span className="small">This decides which existing layout photo and hold map the new layout starts from.</span>
-                </div>
+              <div className="row">
+                <button className={`button ${layoutMode === 'edit' ? '' : 'secondary'}`} type="button" onClick={() => setLayoutMode('edit')}>Edit existing layout</button>
+                <button className={`button ${layoutMode === 'create' ? '' : 'secondary'}`} type="button" onClick={() => setLayoutMode('create')}>Create new layout</button>
               </div>
-              <div className="grid grid-2 mobile-grid-1">
-                <div><label className="label">Change type</label><select className="select" value={versionDraft.changeType} onChange={(e) => setVersionDraft((current) => ({ ...current, changeType: e.target.value as ChangeType }))}><option value="additive">additive</option><option value="modified">modified</option><option value="reset">reset</option></select></div>
-                <div><label className="label">Notes</label><input className="input" value={versionDraft.notes} onChange={(e) => setVersionDraft((current) => ({ ...current, notes: e.target.value }))} /></div>
-              </div>
-              <button className="button" type="button" onClick={createVersionFromDraft}>Create new layout</button>
             </div>
-            <div className="card col">
-              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                <div><h2 className="section-title">Layout editor</h2><p className="section-subtitle">Tap empty space to create a hold. Drag holds to move them.</p></div>
+
+            {layoutMode === 'create' ? (
+              <div className="card col">
+                <div>
+                  <h2 className="section-title">Create new layout</h2>
+                  <p className="section-subtitle">Pick a source layout to copy, then name and describe the new layout you want to create.</p>
+                </div>
+                <div className="grid grid-2 mobile-grid-1">
+                  <div><label className="label">New layout name</label><input className="input" value={versionDraft.name} onChange={(e) => setVersionDraft((current) => ({ ...current, name: e.target.value }))} /></div>
+                  <div className="col" style={{ gap: 8 }}>
+                    <div><label className="label">Source layout to copy from</label><VersionSelect versions={versions} value={versionDraft.sourceVersionId} onChange={(value) => setVersionDraft((current) => ({ ...current, sourceVersionId: value }))} /></div>
+                    <span className="small">The new layout starts by copying this layout&apos;s image and hold map.</span>
+                  </div>
+                </div>
+                <div className="grid grid-2 mobile-grid-1">
+                  <div><label className="label">Change type</label><select className="select" value={versionDraft.changeType} onChange={(e) => setVersionDraft((current) => ({ ...current, changeType: e.target.value as ChangeType }))}><option value="additive">additive</option><option value="modified">modified</option><option value="reset">reset</option></select></div>
+                  <div><label className="label">Notes</label><input className="input" value={versionDraft.notes} onChange={(e) => setVersionDraft((current) => ({ ...current, notes: e.target.value }))} /></div>
+                </div>
+                <button className="button" type="button" onClick={createVersionFromDraft}>Create new layout</button>
+              </div>
+            ) : (
+              <div className="card col">
+                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h2 className="section-title">Edit existing layout</h2>
+                    <p className="section-subtitle">Choose a saved layout, then update its image and hold positions.</p>
+                  </div>
+                  <div className="compact-field">
+                    <label className="label">Layout to edit</label>
+                    <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+                  </div>
+                </div>
                 <div className="row">
                   <label className="button secondary file-button">Upload image<input type="file" accept="image/*" onChange={onBoardImageUpload} /></label>
                   <button className="button danger" type="button" onClick={removeHoldFromLayout} disabled={!activeLayoutHold}>Delete hold</button>
                   <button className="button danger" type="button" onClick={deleteSelectedLayout}>Delete layout</button>
                 </div>
-              </div>
-              <div>
-                <label className="label">Adjust photo</label>
+                <div>
+                  <label className="label">Adjust photo</label>
+                  <div className="grid grid-2 mobile-grid-1">
+                    <div>
+                      <div className="small">Zoom: {photoAdjust.scale.toFixed(2)}x</div>
+                      <input className="range" type="range" min="0.6" max="1.8" step="0.05" value={photoAdjust.scale} onChange={(e) => updatePhotoAdjust({ scale: Number(e.target.value) })} />
+                    </div>
+                    <div>
+                      <div className="small">Rotate: {photoAdjust.rotation}°</div>
+                      <input className="range" type="range" min="-25" max="25" step="1" value={photoAdjust.rotation} onChange={(e) => updatePhotoAdjust({ rotation: Number(e.target.value) })} />
+                    </div>
+                    <div>
+                      <div className="small">Move X: {photoAdjust.offsetX}px</div>
+                      <input className="range" type="range" min="-120" max="120" step="2" value={photoAdjust.offsetX} onChange={(e) => updatePhotoAdjust({ offsetX: Number(e.target.value) })} />
+                    </div>
+                    <div>
+                      <div className="small">Move Y: {photoAdjust.offsetY}px</div>
+                      <input className="range" type="range" min="-120" max="120" step="2" value={photoAdjust.offsetY} onChange={(e) => updatePhotoAdjust({ offsetY: Number(e.target.value) })} />
+                    </div>
+                  </div>
+                  <div className="row">
+                    <button className="button secondary" type="button" onClick={() => setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }))}>Reset photo</button>
+                  </div>
+                </div>
+                <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} />
                 <div className="grid grid-2 mobile-grid-1">
-                  <div>
-                    <div className="small">Zoom: {photoAdjust.scale.toFixed(2)}x</div>
-                    <input className="range" type="range" min="0.6" max="1.8" step="0.05" value={photoAdjust.scale} onChange={(e) => updatePhotoAdjust({ scale: Number(e.target.value) })} />
+                  <div className="card col">
+                    <strong>Selected hold</strong>
+                    <span className="small">{activeLayoutHold ? `${activeLayoutHold.label} @ ${Math.round(activeLayoutHold.x)}, ${Math.round(activeLayoutHold.y)}` : 'Tap a hold to edit it.'}</span>
+                    <label className="label">Label</label>
+                    <input className="input" value={activeLayoutHold?.label ?? ''} onChange={(e) => renameActiveHold(e.target.value)} disabled={!activeLayoutHold} />
+                    <label className="label">Color</label>
+                    <input className="input" type="color" value={activeLayoutHold?.color ?? '#ffffff'} onChange={(e) => recolorActiveHold(e.target.value)} disabled={!activeLayoutHold} />
                   </div>
-                  <div>
-                    <div className="small">Rotate: {photoAdjust.rotation}°</div>
-                    <input className="range" type="range" min="-25" max="25" step="1" value={photoAdjust.rotation} onChange={(e) => updatePhotoAdjust({ rotation: Number(e.target.value) })} />
-                  </div>
-                  <div>
-                    <div className="small">Move X: {photoAdjust.offsetX}px</div>
-                    <input className="range" type="range" min="-120" max="120" step="2" value={photoAdjust.offsetX} onChange={(e) => updatePhotoAdjust({ offsetX: Number(e.target.value) })} />
-                  </div>
-                  <div>
-                    <div className="small">Move Y: {photoAdjust.offsetY}px</div>
-                    <input className="range" type="range" min="-120" max="120" step="2" value={photoAdjust.offsetY} onChange={(e) => updatePhotoAdjust({ offsetY: Number(e.target.value) })} />
-                  </div>
-                </div>
-                <div className="row">
-                  <button className="button secondary" type="button" onClick={() => setPhotoAdjustByVersion((current) => ({ ...current, [selectedVersion.id]: { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 } }))}>Reset photo</button>
+                  <div className="card col"><strong>How it works</strong><span className="small">- Choose the saved layout you want to update</span><span className="small">- Upload a fresh board photo for that layout</span><span className="small">- Tap the image to create a new hold</span><span className="small">- Drag any hold to reposition it</span><span className="small">- Tap a hold, then rename, recolor, or delete it</span></div>
                 </div>
               </div>
-              <TapDragBoard version={selectedVersion} activeHoldId={layoutHoldId} onSelectHold={setLayoutHoldId} onMoveHold={updateHoldPosition} onAddHold={addHoldAtPosition} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} />
-              <div className="grid grid-2 mobile-grid-1">
-                <div className="card col">
-                  <strong>Selected hold</strong>
-                  <span className="small">{activeLayoutHold ? `${activeLayoutHold.label} @ ${Math.round(activeLayoutHold.x)}, ${Math.round(activeLayoutHold.y)}` : 'Tap a hold to edit it.'}</span>
-                  <label className="label">Label</label>
-                  <input className="input" value={activeLayoutHold?.label ?? ''} onChange={(e) => renameActiveHold(e.target.value)} disabled={!activeLayoutHold} />
-                  <label className="label">Color</label>
-                  <input className="input" type="color" value={activeLayoutHold?.color ?? '#ffffff'} onChange={(e) => recolorActiveHold(e.target.value)} disabled={!activeLayoutHold} />
-                </div>
-                <div className="card col"><strong>How it works</strong><span className="small">- Upload a fresh board photo for this layout</span><span className="small">- Tap the image to create a new hold</span><span className="small">- Drag any hold to reposition it</span><span className="small">- Tap a hold, then rename/recolor/delete it</span></div>
-              </div>
-            </div>
+            )}
           </div>
           <div className="col">
             <div className="card"><h2 className="section-title">Layout history</h2><p className="section-subtitle">Track layout changes and whether older climbs still work.</p></div>
