@@ -35,9 +35,9 @@ body { min-height: 100vh; }
 .textarea { min-height: 100px; resize: vertical; }
 .range { width: 100%; accent-color: var(--accent); }
 .label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-.page-title { font-size: 34px; margin: 0 0 8px; }
+.page-title { font-size: 34px; margin: 0 0 8px; color: var(--accent); }
 .page-subtitle { color: var(--muted); margin: 0; line-height: 1.5; }
-.section-title { font-size: 20px; margin: 0 0 6px; }
+.section-title { font-size: 20px; margin: 0 0 6px; color: var(--accent); }
 .section-subtitle { color: var(--muted); margin: 0 0 16px; }
 .kpi { font-size: 28px; font-weight: 800; margin: 0; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -70,7 +70,8 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .layout-editor-header { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; }
 .layout-editor-toolbar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .layout-status-card { display: flex; align-items: center; justify-content: center; min-height: 46px; }
-.climb-list-button { width: 100%; text-align: left; }
+.climb-list-button { width: 100%; text-align: left; color: var(--text); }
+.climb-list-button strong { color: var(--accent); }
 .selected-panel { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(125,211,252,.35), 0 10px 30px rgba(0,0,0,.2); }
 .disabled-button { opacity: 0.55; cursor: not-allowed; }
 .draft-preview-card { align-items: stretch; }
