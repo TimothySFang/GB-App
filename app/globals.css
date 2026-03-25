@@ -73,6 +73,11 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .climb-list-button { width: 100%; text-align: left; }
 .selected-panel { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(125,211,252,.35), 0 10px 30px rgba(0,0,0,.2); }
 .disabled-button { opacity: 0.55; cursor: not-allowed; }
+.draft-preview-card { align-items: stretch; }
+.draft-preview-card .wall-preview { width: min(100%, 520px); align-self: center; }
+.full-climb-layout { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.full-climb-preview { width: min(100%, 560px); }
+.full-climb-sidebar { min-width: 0; }
 .session-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .wrap-grid { display: flex; flex-wrap: wrap; gap: 10px; }
 .file-button { position: relative; overflow: hidden; }
@@ -93,4 +98,8 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
   .layout-editor-toolbar { width: 100%; }
   .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .session-card { align-items: flex-start; flex-direction: column; }
+}
+@media (min-width: 900px) {
+  .full-climb-layout { grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr); }
+  .full-climb-preview { position: sticky; top: 24px; }
 }

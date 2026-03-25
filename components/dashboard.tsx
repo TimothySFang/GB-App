@@ -654,7 +654,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               <button className="button" type="button" onClick={saveDraftClimb}>{editingClimbId ? 'Update climb' : 'Save climb'}</button>
               <button className="button secondary" type="button" onClick={() => { if (!draft.name && !draft.setterGrade && !draft.notes && !hasDraftSelections) { setDraft(emptyDraft()); setEditingClimbId(null); return; } if (window.confirm('Discard unsaved climb changes?')) { setDraft(emptyDraft()); setEditingClimbId(null); setFormError(''); } }}>Reset</button>
             </div>
-            <div className="card col"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} wide /></div>
+            <div className="card col draft-preview-card"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} /></div>
               </>
             )}
           </div>
@@ -877,48 +877,54 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
   const canManage = isOwner || isAdminUser;
   return (
     <div className="card col">
-      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 className="page-title">{climb.name}</h1>
-          <div className="small">by {climb.createdByName} · {baseVersion.name}</div>
-          <div className="small">setter {climb.setterGrade} · community {communityGrade(climb)} · ★ {averageRating(climb) ?? '—'}</div>
+      <div className="full-climb-layout">
+        <div className="full-climb-visual col">
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h1 className="page-title">{climb.name}</h1>
+              <div className="small">by {climb.createdByName} · {baseVersion.name}</div>
+              <div className="small">setter {climb.setterGrade} · community {communityGrade(climb)} · ★ {averageRating(climb) ?? '—'}</div>
+            </div>
+            <div className="row">
+              {favorite && <span className="badge">favorite</span>}
+              {sent && <span className="badge">sent</span>}
+            </div>
+          </div>
+          <div className="full-climb-preview">
+            <WallPreview version={baseVersion} highlighted={highlight} />
+          </div>
+          <div className="row">
+            <span className="route-chip">start: {groups.start.map((hold) => hold.label).join(', ') || '—'}</span>
+            <span className="route-chip">middle: {groups.middle.map((hold) => hold.label).join(', ') || '—'}</span>
+            <span className="route-chip">finish: {groups.finish.map((hold) => hold.label).join(', ') || '—'}</span>
+          </div>
+          {status && <div className="badge">current layout status: {status.status}</div>}
+          <p className="small">{climb.notes || 'No notes yet.'}</p>
         </div>
-        <div className="row">
-          {favorite && <span className="badge">favorite</span>}
-          {sent && <span className="badge">sent</span>}
+        <div className="full-climb-sidebar col">
+          <div className="card col">
+            <strong>Actions</strong>
+            <button className={`button ${favorite ? 'secondary' : ''}`} onClick={onFavorite}>{favorite ? 'Unfavorite' : 'Favorite'}</button>
+            <label className="label">Rate this climb</label>
+            <select className="select" value={ratingDraft} onChange={(e) => setRatingDraft(Number(e.target.value))}>{[5,4,3,2,1].map((stars) => <option key={stars} value={stars}>{stars} stars</option>)}</select>
+            <button className="button secondary" onClick={() => onRate(ratingDraft)}>Save rating</button>
+            <label className="label">Mark sent with grade</label>
+            <select className="select" value={sendGradeDraft} onChange={(e) => setSendGradeDraft(e.target.value)}>{['VB','V0','V1','V2','V3','V4','V5','V6'].map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select>
+            <button className="button secondary" onClick={() => onSend(sendGradeDraft)}>{sent ? 'Update send grade' : 'Mark sent'}</button>
+          </div>
+          <div className="card col">
+            <strong>Stats</strong>
+            <span className="small">Favorites: {(climb.favorites ?? []).length}</span>
+            <span className="small">Ratings: {climb.ratings.length}</span>
+            <span className="small">Sends: {climb.sends?.length ?? 0}</span>
+            <span className="small">Community grade: {communityGrade(climb)}</span>
+            <span className="small">Average rating: {averageRating(climb) ?? 'No ratings yet'}</span>
+          </div>
+          <div className="row">
+            <button className={`button ${isOwner ? '' : 'secondary disabled-button'}`} onClick={onEdit} disabled={!isOwner}>Edit climb</button>
+            <button className={`button danger ${canManage ? '' : 'disabled-button'}`} onClick={onDelete} disabled={!canManage}>Delete climb</button>
+          </div>
         </div>
-      </div>
-      <WallPreview version={baseVersion} highlighted={highlight} />
-      <div className="row">
-        <span className="route-chip">start: {groups.start.map((hold) => hold.label).join(', ') || '—'}</span>
-        <span className="route-chip">middle: {groups.middle.map((hold) => hold.label).join(', ') || '—'}</span>
-        <span className="route-chip">finish: {groups.finish.map((hold) => hold.label).join(', ') || '—'}</span>
-      </div>
-      {status && <div className="badge">current layout status: {status.status}</div>}
-      <p className="small">{climb.notes || 'No notes yet.'}</p>
-      <div className="grid grid-2 mobile-grid-1">
-        <div className="card col">
-          <strong>Actions</strong>
-          <button className={`button ${favorite ? 'secondary' : ''}`} onClick={onFavorite}>{favorite ? 'Unfavorite' : 'Favorite'}</button>
-          <label className="label">Rate this climb</label>
-          <select className="select" value={ratingDraft} onChange={(e) => setRatingDraft(Number(e.target.value))}>{[5,4,3,2,1].map((stars) => <option key={stars} value={stars}>{stars} stars</option>)}</select>
-          <button className="button secondary" onClick={() => onRate(ratingDraft)}>Save rating</button>
-          <label className="label">Mark sent with grade</label>
-          <select className="select" value={sendGradeDraft} onChange={(e) => setSendGradeDraft(e.target.value)}>{['VB','V0','V1','V2','V3','V4','V5','V6'].map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select>
-          <button className="button secondary" onClick={() => onSend(sendGradeDraft)}>{sent ? 'Update send grade' : 'Mark sent'}</button>
-        </div>
-        <div className="card col">
-          <strong>Stats</strong>
-          <span className="small">Favorites: {(climb.favorites ?? []).length}</span>
-          <span className="small">Ratings: {climb.ratings.length}</span>
-          <span className="small">Sends: {climb.sends?.length ?? 0}</span>
-          <span className="small">Community grade: {communityGrade(climb)}</span>
-          <span className="small">Average rating: {averageRating(climb) ?? 'No ratings yet'}</span>
-        </div>
-      </div>
-      <div className="row">
-        <button className={`button ${isOwner ? '' : 'secondary disabled-button'}`} onClick={onEdit} disabled={!isOwner}>Edit climb</button>
-        <button className={`button danger ${canManage ? '' : 'disabled-button'}`} onClick={onDelete} disabled={!canManage}>Delete climb</button>
       </div>
     </div>
   );
@@ -943,7 +949,7 @@ function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { versi
         {version.holds.map((hold: Hold) => {
           const role = (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft[candidate].includes(hold.canonicalHoldId));
           const isSelected = Boolean(role);
-          const roleColor = role === 'start' ? '#22c55e' : role === 'middle' ? '#f59e0b' : role === 'finish' ? '#ec4899' : '#ffffff';
+          const roleColor = role === 'start' ? '#22c55e' : role === 'middle' ? '#3b82f6' : role === 'finish' ? '#ef4444' : '#ffffff';
           return <button key={hold.id} type="button" className={`hold-button ${isSelected ? 'selected' : ''}`} title={`${hold.label} · add as ${selectedRole}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: roleColor }} onClick={() => onToggleHold(hold.canonicalHoldId)}><span>{hold.label}</span></button>;
         })}
       </div>
