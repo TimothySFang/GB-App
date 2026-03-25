@@ -1,9 +1,9 @@
 import { Hold, HoldRole, WallVersion } from '@/lib/types';
 
 const roleColor: Record<HoldRole, string> = {
-  start: '#22c55e',
-  middle: '#3b82f6',
-  finish: '#ef4444'
+  start: '#32d74b',
+  middle: '#1d9bf0',
+  finish: '#ff453a'
 };
 
 export function WallPreview({
@@ -48,8 +48,8 @@ export function WallPreview({
               top: `${hold.y}%`,
               color: uniformColor ?? (role ? roleColor[role] : hold.color),
               boxShadow: role
-                ? `0 0 0 4px ${roleColor[role]}22`
-                : `0 0 0 3px ${(uniformColor ?? hold.color)}18`
+                ? `0 0 0 5px ${roleColor[role]}33`
+                : `0 0 0 4px ${(uniformColor ?? hold.color)}26`
             }}
           />
         ))}

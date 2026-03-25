@@ -949,7 +949,7 @@ function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { versi
         {version.holds.map((hold: Hold) => {
           const role = (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft[candidate].includes(hold.canonicalHoldId));
           const isSelected = Boolean(role);
-          const roleColor = role === 'start' ? '#22c55e' : role === 'middle' ? '#3b82f6' : role === 'finish' ? '#ef4444' : '#ffffff';
+          const roleColor = role === 'start' ? '#32d74b' : role === 'middle' ? '#1d9bf0' : role === 'finish' ? '#ff453a' : '#ffffff';
           return <button key={hold.id} type="button" className={`hold-button ${isSelected ? 'selected' : ''}`} title={`${hold.label} · add as ${selectedRole}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: roleColor }} onClick={() => onToggleHold(hold.canonicalHoldId)}><span>{hold.label}</span></button>;
         })}
       </div>
