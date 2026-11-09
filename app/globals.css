@@ -72,6 +72,10 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .layout-status-card { display: flex; align-items: center; justify-content: center; min-height: 46px; }
 .climb-list-button { width: 100%; text-align: left; color: var(--text); }
 .climb-list-button strong { color: var(--accent); }
+.layout-history-button { width: 100%; text-align: left; color: var(--text); font: inherit; cursor: pointer; }
+.layout-history-button strong { color: var(--accent); }
+.layout-history-button:hover { border-color: var(--accent); }
+.layout-history-button:focus-visible { outline: 3px solid rgba(125,211,252,.35); outline-offset: 2px; }
 .selected-panel { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(125,211,252,.35), 0 10px 30px rgba(0,0,0,.2); }
 .disabled-button { opacity: 0.55; cursor: not-allowed; }
 .draft-preview-card { align-items: stretch; }

@@ -1,5 +1,4 @@
-import { all, first, getD1 } from "@/db";
-import { mockData } from "./mock-data";
+import { all, first, run } from "@/db";
 import type {
   ChangeType,
   CompatibilityStatus,
@@ -36,123 +35,19 @@ type HoldRow = {
   status: HoldStatus;
 };
 
-const demoUserId = (id: string, currentUserId: string) =>
-  id === mockData.currentUser.id ? currentUserId : `demo-${id}`;
-
-export async function ensureSeedData(currentUserId: string) {
+async function ensureInitialWall() {
   const existing = await first<{ count: number }>("SELECT COUNT(*) AS count FROM walls");
   if (Number(existing?.count ?? 0) > 0) return;
-
-  const db = getD1();
-  const statements: D1PreparedStatement[] = [];
-
-  for (const user of mockData.users) {
-    if (user.id === mockData.currentUser.id) continue;
-    statements.push(
-      db.prepare("INSERT OR IGNORE INTO users (id, email, display_name, role) VALUES (?, ?, ?, ?)")
-        .bind(demoUserId(user.id, currentUserId), user.email, user.name, user.role),
-    );
-  }
-
-  statements.push(
-    db.prepare("INSERT INTO walls (id, name, notes) VALUES (?, ?, ?)")
-      .bind(mockData.wall.id, mockData.wall.name, mockData.wall.notes),
+  await run(
+    "INSERT INTO walls (id, name, notes) VALUES (?, ?, ?)",
+    crypto.randomUUID(),
+    "Home Wall",
+    "Add your first layout to start tracking holds and climbs.",
   );
-
-  for (const version of mockData.wall.versions) {
-    statements.push(
-      db.prepare(`INSERT INTO wall_versions
-        (id, wall_id, parent_version_id, name, change_type, image_url, photo_scale, photo_offset_x, photo_offset_y, photo_rotation, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .bind(
-          version.id,
-          version.wallId,
-          version.parentVersionId ?? null,
-          version.name,
-          version.changeType,
-          version.imageUrl,
-          version.photoScale ?? 1,
-          version.photoOffsetX ?? 0,
-          version.photoOffsetY ?? 0,
-          version.photoRotation ?? 0,
-          version.notes,
-        ),
-    );
-
-    for (const hold of version.holds) {
-      statements.push(
-        db.prepare(`INSERT INTO holds
-          (id, canonical_hold_id, wall_version_id, label, color, x, y, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-          .bind(hold.id, hold.canonicalHoldId, version.id, hold.label, hold.color, hold.x, hold.y, hold.status),
-      );
-    }
-  }
-
-  for (const climb of mockData.climbs) {
-    statements.push(
-      db.prepare(`INSERT INTO climbs
-        (id, wall_version_id, created_by_user_id, name, setter_grade, notes)
-        VALUES (?, ?, ?, ?, ?, ?)`)
-        .bind(
-          climb.id,
-          climb.wallVersionId,
-          demoUserId(climb.createdByUserId, currentUserId),
-          climb.name,
-          climb.setterGrade,
-          climb.notes,
-        ),
-    );
-
-    const version = mockData.wall.versions.find((item) => item.id === climb.wallVersionId);
-    for (const ref of climb.holds) {
-      const hold = version?.holds.find((item) => item.canonicalHoldId === ref.holdId);
-      if (!hold) continue;
-      statements.push(
-        db.prepare("INSERT INTO climb_holds (id, climb_id, hold_id, role, order_index) VALUES (?, ?, ?, ?, ?)")
-          .bind(crypto.randomUUID(), climb.id, hold.id, ref.role, ref.order),
-      );
-    }
-
-    for (const rating of climb.ratings) {
-      statements.push(
-        db.prepare("INSERT INTO climb_ratings (climb_id, user_id, stars) VALUES (?, ?, ?)")
-          .bind(climb.id, demoUserId(rating.userId, currentUserId), rating.stars),
-      );
-    }
-    for (const vote of climb.gradeVotes) {
-      statements.push(
-        db.prepare("INSERT INTO climb_grade_votes (climb_id, user_id, suggested_grade) VALUES (?, ?, ?)")
-          .bind(climb.id, demoUserId(vote.userId, currentUserId), vote.grade),
-      );
-    }
-    for (const userId of climb.favorites ?? []) {
-      statements.push(
-        db.prepare("INSERT INTO favorites (climb_id, user_id) VALUES (?, ?)")
-          .bind(climb.id, demoUserId(userId, currentUserId)),
-      );
-    }
-    for (const send of climb.sends ?? []) {
-      statements.push(
-        db.prepare("INSERT INTO climb_sends (climb_id, user_id, grade, sent_at) VALUES (?, ?, ?, ?)")
-          .bind(climb.id, demoUserId(send.userId, currentUserId), send.grade, send.sentAt),
-      );
-    }
-  }
-
-  for (const item of mockData.compatibility) {
-    statements.push(
-      db.prepare(`INSERT INTO climb_compatibility
-        (climb_id, target_wall_version_id, status, reason) VALUES (?, ?, ?, ?)`)
-        .bind(item.climbId, item.targetWallVersionId, item.status, item.reason),
-    );
-  }
-
-  await db.batch(statements);
 }
 
 export async function getDashboardData(currentUserId: string): Promise<DashboardData> {
-  await ensureSeedData(currentUserId);
+  await ensureInitialWall();
 
   const [users, wall, versions, holds, climbs, climbHolds, ratings, gradeVotes, favorites, sends, compatibility] = await Promise.all([
     all<UserRow>("SELECT id, email, display_name AS displayName, role FROM users ORDER BY created_at"),

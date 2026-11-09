@@ -767,7 +767,23 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             <div className="card"><h2 className="section-title">Layout history</h2><p className="section-subtitle">Track layout changes and whether older climbs still work.</p></div>
             <div className="list">
               {!versions.length ? <div className="card small">No layouts saved yet.</div> : null}
-              {versions.map((version) => <div key={version.id} className={`card ${version.id === selectedVersion?.id ? 'selected-panel' : ''}`}><div className="row" style={{ justifyContent: 'space-between' }}><strong>{version.name}</strong><span className="badge">{version.changeType}</span></div><div className="small">{version.holds.length} holds</div><p className="small">{version.notes}</p></div>)}
+              {versions.map((version) => (
+                <button
+                  key={version.id}
+                  type="button"
+                  className={`card layout-history-button ${version.id === selectedVersion?.id ? 'selected-panel' : ''}`}
+                  aria-pressed={version.id === selectedVersion?.id}
+                  onClick={() => {
+                    setSelectedVersionId(version.id);
+                    setLayoutHoldId(null);
+                    setLayoutMode('edit');
+                  }}
+                >
+                  <div className="row" style={{ justifyContent: 'space-between' }}><strong>{version.name}</strong><span className="badge">{version.changeType}</span></div>
+                  <div className="small">{version.holds.length} holds</div>
+                  <p className="small">{version.notes}</p>
+                </button>
+              ))}
               {inheritedClimbs.map((climb) => {
                 if (!latest) return null;
                 const status = getCompatibility(climb.id, latest.id, data.compatibility);
