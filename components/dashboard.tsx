@@ -1,7 +1,7 @@
 'use client';
 
-import { ChangeEvent, PointerEvent, useMemo, useRef, useState } from 'react';
-import { averageRating, communityGrade, getCompatibility, getLatestVersion, groupClimbHolds, hasSent, isFavorited, totalRepeats, userRepeats } from '@/lib/utils';
+import { ChangeEvent, PointerEvent, TouchEvent, useMemo, useRef, useState } from 'react';
+import { averageRating, communityGrade, getCompatibility, getLatestVersion, hasSent, isFavorited, totalRepeats, userRepeats } from '@/lib/utils';
 import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating, DashboardData, Repeat } from '@/lib/types';
 import { WallPreview } from './wall-preview';
 
@@ -51,6 +51,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const [gradeFilter, setGradeFilter] = useState('all');
   const [climbSort, setClimbSort] = useState<ClimbSort>('newest');
   const [detailClimbId, setDetailClimbId] = useState<string | null>(null);
+  const [detailQueueIds, setDetailQueueIds] = useState<string[]>([]);
   const [ratingDraft, setRatingDraft] = useState<number>(5);
   const [sendGradeDraft, setSendGradeDraft] = useState('V3');
   const [requestError, setRequestError] = useState('');
@@ -103,7 +104,23 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     .map((repeat) => ({ ...repeat, climb })))
     .sort((a, b) => b.repeatedAt.localeCompare(a.repeatedAt));
   const homeClimbs = climbs.filter((climb) => !selectedVersionId || climb.wallVersionId === selectedVersionId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
+  const detailQueue = detailQueueIds.filter((id) => climbs.some((climb) => climb.id === id));
+  const detailIndex = detailClimbId ? detailQueue.indexOf(detailClimbId) : -1;
+  const previousDetailId = detailIndex > 0 ? detailQueue[detailIndex - 1] : null;
+  const nextDetailId = detailIndex >= 0 && detailIndex < detailQueue.length - 1 ? detailQueue[detailIndex + 1] : null;
   const layoutHasUnsavedChanges = selectedVersion ? dirtyLayoutIds.has(selectedVersion.id) : false;
+
+  const openClimbDetail = (climbId: string, sourceIds: string[]) => {
+    const uniqueIds = [...new Set(sourceIds)];
+    setDetailQueueIds(uniqueIds.includes(climbId) ? uniqueIds : [climbId, ...uniqueIds]);
+    setDetailClimbId(climbId);
+  };
+
+  const showAdjacentClimb = (climbId: string | null) => {
+    if (!climbId) return;
+    setDetailClimbId(climbId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const markLayoutDirty = (versionId: string) => {
     setDirtyLayoutIds((current) => {
@@ -575,6 +592,9 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
           setRatingDraft={setRatingDraft}
           sendGradeDraft={sendGradeDraft}
           setSendGradeDraft={setSendGradeDraft}
+          position={detailIndex >= 0 && detailQueue.length > 1 ? { index: detailIndex + 1, total: detailQueue.length } : null}
+          onPrevious={previousDetailId ? () => showAdjacentClimb(previousDetailId) : null}
+          onNext={nextDetailId ? () => showAdjacentClimb(nextDetailId) : null}
         />
       </div>
     );
@@ -597,8 +617,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               <div className="stat-pill"><span className="small">Created</span><strong>{profileCreated.length}</strong></div>
               <div className="stat-pill"><span className="small">Sent</span><strong>{profileSent.length}</strong></div>
               <div className="stat-pill"><span className="small">Repeats</span><strong>{profileRepeats.length}</strong></div>
-              <div className="stat-pill"><span className="small">Favorites</span><strong>{profileFavorites.length}</strong></div>
-              <div className="stat-pill"><span className="small">Layouts</span><strong>{versions.length}</strong></div>
+              <button type="button" className="stat-pill stat-pill-button" onClick={() => { setClimbFilter('favorites'); setClimbSearch(''); setGradeFilter('all'); setActiveTab('climbs'); window.scrollTo({ top: 0 }); }}><span className="small">Favorites</span><strong>{profileFavorites.length}</strong></button>
             </div>
           </div>
           <div className="card col">
@@ -617,15 +636,14 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         </div>
         <div className="card col home-climbs-card">
           <div>
-            <h2 className="section-title">Quick climb actions</h2>
-            <p className="section-subtitle">Swipe left to send or repeat. Swipe right to remove your latest repeat.</p>
+            <h2 className="section-title">Recent climbs</h2>
           </div>
           <div className="list">
             {!homeClimbs.length ? <div className="small">No climbs on this layout yet.</div> : null}
             {homeClimbs.map((climb) => {
               const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latest;
               if (!baseVersion) return null;
-              return <SwipeableClimbCard key={`home-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} onOpen={() => setDetailClimbId(climb.id)} onAdvance={() => advanceClimbProgress(climb)} onRemoveRepeat={() => removeLatestRepeat(climb.id)} />;
+              return <SwipeableClimbCard key={`home-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} showHint={false} onOpen={() => openClimbDetail(climb.id, homeClimbs.map((item) => item.id))} onAdvance={() => advanceClimbProgress(climb)} onRemoveRepeat={() => removeLatestRepeat(climb.id)} />;
             })}
           </div>
         </div>
@@ -662,7 +680,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               const compatibility = latest && climb.wallVersionId !== latest.id ? getCompatibility(climb.id, latest.id, data.compatibility) : null;
               if (!baseVersion) return null;
               return (
-                <SwipeableClimbCard key={`library-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} selected={selectedClimbId === climb.id} compatibility={compatibility?.status} onOpen={() => { setSelectedClimbId(climb.id); setDetailClimbId(climb.id); }} onAdvance={() => advanceClimbProgress(climb)} onRemoveRepeat={() => removeLatestRepeat(climb.id)} />
+                <SwipeableClimbCard key={`library-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} selected={selectedClimbId === climb.id} compatibility={compatibility?.status} onOpen={() => { setSelectedClimbId(climb.id); openClimbDetail(climb.id, filteredClimbs.map((item) => item.id)); }} onAdvance={() => advanceClimbProgress(climb)} onRemoveRepeat={() => removeLatestRepeat(climb.id)} />
               );
             })}
           </div>
@@ -864,13 +882,13 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
       {activeTab === 'profile' && (
         <>
-          <SessionHeader name={data.currentUser.name} email={data.currentUser.email} role={data.currentUser.role} />
-          <div className="grid grid-3 mobile-grid-1">
-            <ProfileColumn title="Created" climbs={profileCreated} onOpen={(id) => setDetailClimbId(id)} />
-            <ProfileColumn title="Favorites" climbs={profileFavorites} onOpen={(id) => setDetailClimbId(id)} />
-            <ProfileColumn title="Sent" climbs={profileSent} onOpen={(id) => setDetailClimbId(id)} />
+          <div className="profile-grid">
+            <ProfileColumn title="Created" climbs={profileCreated} onOpen={(id) => openClimbDetail(id, profileCreated.map((item) => item.id))} />
+            <ProfileColumn title="Favorites" climbs={profileFavorites} onOpen={(id) => openClimbDetail(id, profileFavorites.map((item) => item.id))} />
+            <ProfileColumn title="Sent" climbs={profileSent} onOpen={(id) => openClimbDetail(id, profileSent.map((item) => item.id))} />
           </div>
-          <RepeatHistory repeats={profileRepeats} onOpen={(id) => setDetailClimbId(id)} />
+          <RepeatHistory repeats={profileRepeats} onOpen={(id) => openClimbDetail(id, profileRepeats.map((item) => item.climb.id))} />
+          <AccountCard email={data.currentUser.email} role={data.currentUser.role} />
         </>
       )}
 
@@ -911,7 +929,7 @@ function AppHeader({ name, section }: { name: string; section: string }) {
   );
 }
 
-function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false, compatibility, onOpen, onAdvance, onRemoveRepeat }: { climb: Climb; layoutName: string; currentUserId: string; selected?: boolean; compatibility?: string; onOpen: () => void; onAdvance: () => void; onRemoveRepeat: () => void }) {
+function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false, showHint = true, compatibility, onOpen, onAdvance, onRemoveRepeat }: { climb: Climb; layoutName: string; currentUserId: string; selected?: boolean; showHint?: boolean; compatibility?: string; onOpen: () => void; onAdvance: () => void; onRemoveRepeat: () => void }) {
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const gesture = useRef<{ startX: number; delta: number; moved: boolean } | null>(null);
@@ -981,34 +999,39 @@ function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false
           {sent && <span className="badge">sent</span>}
           {repeatCount > 0 && <span className="badge">your repeats {repeatCount}</span>}
           {compatibility && <span className="badge">{compatibility}</span>}
-          <span className="swipe-hint">← {sent ? 'repeat' : 'send'} · remove →</span>
+          {showHint && <span className="swipe-hint">← {sent ? 'repeat' : 'send'} · remove →</span>}
         </div>
       </button>
     </div>
   );
 }
 
-function SessionHeader({ name, email, role }: { name: string; email: string; role: DashboardData['currentUser']['role'] }) {
+function AccountCard({ email, role }: { email: string; role: DashboardData['currentUser']['role'] }) {
   return (
-    <div className="card session-card">
-      <div>
-        <div className="section-title">GB App</div>
-        <div className="small">{name} · {email}</div>
-      </div>
-      <div className="row">
+    <div className="card account-card">
+      <div className="account-info">
+        <span className="small">{email}</span>
         <span className="badge">{role}</span>
-        <a className="button secondary" href="/signout-with-chatgpt?return_to=%2F" target="_top">Sign out</a>
       </div>
+      <a className="button secondary" href="/signout-with-chatgpt?return_to=%2F" target="_top">Sign out</a>
     </div>
   );
 }
 
 function ProfileColumn({ title, climbs, onOpen }: { title: string; climbs: Climb[]; onOpen: (id: string) => void }) {
   return (
-    <div className="card col">
-      <h2 className="section-title">{title}</h2>
-      <div className="list">
-        {climbs.length ? climbs.map((climb) => <button key={climb.id} className="card climb-list-button" onClick={() => onOpen(climb.id)}><strong>{climb.name}</strong><div className="small">{climb.setterGrade ? `setter ${climb.setterGrade} · ` : ''}community {communityGrade(climb)}</div><div className="small">{totalRepeats(climb)} total repeats</div></button>) : <div className="small">Nothing here yet.</div>}
+    <div className="card profile-card">
+      <div className="profile-card-head">
+        <h2 className="section-title">{title}</h2>
+        <span className="profile-count">{climbs.length}</span>
+      </div>
+      <div className="profile-scroll">
+        {climbs.length ? climbs.map((climb) => (
+          <button key={climb.id} className="profile-row" onClick={() => onOpen(climb.id)}>
+            <strong>{climb.name}</strong>
+            <span>{climb.setterGrade ?? communityGrade(climb)} · {totalRepeats(climb)}×</span>
+          </button>
+        )) : <div className="small">Nothing here yet.</div>}
       </div>
     </div>
   );
@@ -1016,16 +1039,16 @@ function ProfileColumn({ title, climbs, onOpen }: { title: string; climbs: Climb
 
 function RepeatHistory({ repeats, onOpen }: { repeats: Array<Repeat & { climb: Climb }>; onOpen: (id: string) => void }) {
   return (
-    <div className="card col">
-      <div>
-        <h2 className="section-title">Repeat history</h2>
-        <p className="section-subtitle">Every repeat you log, newest first.</p>
+    <div className="card profile-card">
+      <div className="profile-card-head">
+        <h2 className="section-title">Repeat log</h2>
+        <span className="profile-count">{repeats.length}</span>
       </div>
-      <div className="repeat-history-list">
+      <div className="profile-scroll">
         {repeats.length ? repeats.map((repeat) => (
-          <button key={repeat.id} className="repeat-history-row" onClick={() => onOpen(repeat.climb.id)}>
+          <button key={repeat.id} className="profile-row" onClick={() => onOpen(repeat.climb.id)}>
             <strong>{repeat.climb.name}</strong>
-            <span>{new Date(repeat.repeatedAt).toLocaleString()}</span>
+            <span>{new Date(repeat.repeatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
           </button>
         )) : <div className="small">No repeats logged yet.</div>}
       </div>
@@ -1033,7 +1056,24 @@ function RepeatHistory({ repeats, onOpen }: { repeats: Array<Repeat & { climb: C
   );
 }
 
-function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onRepeat, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft }: { climb: Climb; currentUserId: string; isAdminUser: boolean; versions: WallVersion[]; latestVersion: WallVersion | null; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onRepeat: () => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; }) {
+function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onRepeat, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft, position, onPrevious, onNext }: { climb: Climb; currentUserId: string; isAdminUser: boolean; versions: WallVersion[]; latestVersion: WallVersion | null; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onRepeat: () => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; position: { index: number; total: number } | null; onPrevious: (() => void) | null; onNext: (() => void) | null; }) {
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const handleTouchStart = (event: TouchEvent) => {
+    const target = event.target as HTMLElement;
+    if (target.closest('select, input, textarea, button')) { touchStart.current = null; return; }
+    const touch = event.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
+  };
+  const handleTouchEnd = (event: TouchEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) onNext?.(); else onPrevious?.();
+  };
   const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latestVersion;
   if (!baseVersion) {
     return (
@@ -1046,7 +1086,6 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
       </div>
     );
   }
-  const groups = groupClimbHolds(climb, baseVersion);
   const highlight = baseVersion.holds.filter((hold) => climb.holds.some((ref) => ref.holdId === hold.canonicalHoldId)).map((hold) => ({ hold, role: climb.holds.find((ref) => ref.holdId === hold.canonicalHoldId)?.role }));
   const status = latestVersion && climb.wallVersionId !== latestVersion.id ? compatibility.find((entry) => entry.climbId === climb.id && entry.targetWallVersionId === latestVersion.id) : null;
   const favorite = isFavorited(climb, currentUserId);
@@ -1054,7 +1093,7 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
   const isOwner = climb.createdByUserId === currentUserId;
   const canManage = isOwner || isAdminUser;
   return (
-    <div className="card col">
+    <div className="card col" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <div className="full-climb-layout">
         <div className="full-climb-visual col">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1071,38 +1110,37 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
           <div className="full-climb-preview">
             <WallPreview version={baseVersion} highlighted={highlight} />
           </div>
-          <div className="row">
-            <span className="route-chip">start: {groups.start.map((hold) => hold.label).join(', ') || '—'}</span>
-            <span className="route-chip">middle: {groups.middle.map((hold) => hold.label).join(', ') || '—'}</span>
-            <span className="route-chip">foot: {groups.foot.map((hold) => hold.label).join(', ') || '—'}</span>
-            <span className="route-chip">finish: {groups.finish.map((hold) => hold.label).join(', ') || '—'}</span>
+          {position && (
+            <div className="climb-pager small">
+              <button type="button" className="pager-button" onClick={() => onPrevious?.()} disabled={!onPrevious} aria-label="Previous climb">‹</button>
+              <span>{position.index} / {position.total} · swipe to browse</span>
+              <button type="button" className="pager-button" onClick={() => onNext?.()} disabled={!onNext} aria-label="Next climb">›</button>
+            </div>
+          )}
+          <div className="compact-stats">
+            <div><strong>{Math.max(climb.sends?.length ?? 0, totalRepeats(climb))}</strong><span>sends</span></div>
+            <div><strong>{userRepeats(climb, currentUserId)}</strong><span>yours</span></div>
+            <div><strong>{climb.ratings.length}</strong><span>ratings</span></div>
+            <div><strong>{communityGrade(climb)}</strong><span>grade</span></div>
+            <div><strong>{averageRating(climb) ?? '—'}</strong><span>avg ★</span></div>
           </div>
           {status && <div className="badge">current layout status: {status.status}</div>}
-          <p className="small">{climb.notes || 'No notes yet.'}</p>
+          <p className="small" style={{ margin: 0 }}>{climb.notes || 'No notes yet.'}</p>
         </div>
         <div className="full-climb-sidebar col">
-          <div className="card col">
-            <strong>Actions</strong>
-            <button className={`button ${favorite ? 'secondary' : ''}`} onClick={onFavorite}>{favorite ? 'Unfavorite' : 'Favorite'}</button>
-            <label className="label">Rate this climb</label>
-            <select className="select" value={ratingDraft} onChange={(e) => setRatingDraft(Number(e.target.value))}>{[5,4,3,2,1].map((stars) => <option key={stars} value={stars}>{stars} stars</option>)}</select>
-            <button className="button secondary" onClick={() => onRate(ratingDraft)}>Save rating</button>
-            <label className="label">Mark sent with grade</label>
-            <select className="select" value={sendGradeDraft} onChange={(e) => setSendGradeDraft(e.target.value)}>{['VB','V0','V1','V2','V3','V4','V5','V6'].map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select>
-            <button className="button secondary" onClick={() => onSend(sendGradeDraft)}>{sent ? 'Update send grade' : 'Mark sent'}</button>
-            <button className="button" onClick={onRepeat}>Add repeat +1</button>
+          <div className="card col compact-actions">
+            <div className="compact-action-row">
+              <select className="select" aria-label="Rating" value={ratingDraft} onChange={(e) => setRatingDraft(Number(e.target.value))}>{[5,4,3,2,1].map((stars) => <option key={stars} value={stars}>{stars}★</option>)}</select>
+              <button className="button secondary" onClick={() => onRate(ratingDraft)}>Rate</button>
+              <select className="select" aria-label="Send grade" value={sendGradeDraft} onChange={(e) => setSendGradeDraft(e.target.value)}>{['VB','V0','V1','V2','V3','V4','V5','V6'].map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select>
+              <button className="button secondary" onClick={() => onSend(sendGradeDraft)}>{sent ? 'Update send' : 'Mark sent'}</button>
+            </div>
+            <div className="compact-action-row">
+              <button className={`button ${favorite ? 'secondary' : ''}`} onClick={onFavorite}>{favorite ? 'Unfavorite' : 'Favorite'}</button>
+              <button className="button" onClick={onRepeat}>Repeat +1</button>
+            </div>
           </div>
-          <div className="card col">
-            <strong>Stats</strong>
-            <span className="small">Favorites: {(climb.favorites ?? []).length}</span>
-            <span className="small">Ratings: {climb.ratings.length}</span>
-            <span className="small">Sends: {climb.sends?.length ?? 0}</span>
-            <span className="small">Your repeats: {userRepeats(climb, currentUserId)}</span>
-            <span className="small">Total repeats: {totalRepeats(climb)}</span>
-            <span className="small">Community grade: {communityGrade(climb)}</span>
-            <span className="small">Average rating: {averageRating(climb) ?? 'No ratings yet'}</span>
-          </div>
-          <div className="row">
+          <div className="row" style={{ justifyContent: 'center' }}>
             <button className={`button ${isOwner ? '' : 'secondary disabled-button'}`} onClick={onEdit} disabled={!isOwner}>Edit climb</button>
             <button className={`button danger ${canManage ? '' : 'disabled-button'}`} onClick={onDelete} disabled={!canManage}>Delete climb</button>
           </div>
