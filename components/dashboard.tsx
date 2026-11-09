@@ -27,7 +27,7 @@ const emptyDraft = (): DraftState => ({
   name: '',
   setterGrade: '',
   notes: '',
-  selected: { start: [], middle: [], finish: [] }
+  selected: { start: [], middle: [], foot: [], finish: [] }
 });
 
 export function Dashboard({ initialData }: { initialData: DashboardData }) {
@@ -369,8 +369,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const toggleHold = (holdId: string) => {
     setDraft((current) => {
-      const next: DraftState = { ...current, selected: { start: [...current.selected.start], middle: [...current.selected.middle], finish: [...current.selected.finish] } };
-      for (const role of ['start', 'middle', 'finish'] as HoldRole[]) {
+      const next: DraftState = { ...current, selected: { start: [...current.selected.start], middle: [...current.selected.middle], foot: [...current.selected.foot], finish: [...current.selected.finish] } };
+      for (const role of ['start', 'middle', 'foot', 'finish'] as HoldRole[]) {
         if (current.selected[role].includes(holdId) && role === selectedRole) {
           next.selected[role] = next.selected[role].filter((id) => id !== holdId);
           return next;
@@ -394,7 +394,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     setRequestError('');
     if (!window.confirm(editingClimbId ? 'Save changes to this climb?' : 'Create this climb?')) return;
 
-    const holds = (['start', 'middle', 'finish'] as HoldRole[]).flatMap((role) => draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1 })));
+    const holds = (['start', 'middle', 'foot', 'finish'] as HoldRole[]).flatMap((role) => draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1 })));
     const previous = editingClimbId ? climbs.find((c) => c.id === editingClimbId) : null;
     const baseClimb: Climb = {
       id: editingClimbId ?? 'draft',
@@ -448,7 +448,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const startEditing = (climb: Climb) => {
     if (climb.createdByUserId !== currentUserId) return;
-    const selected: Record<HoldRole, string[]> = { start: [], middle: [], finish: [] };
+    const selected: Record<HoldRole, string[]> = { start: [], middle: [], foot: [], finish: [] };
     for (const ref of climb.holds) selected[ref.role].push(ref.holdId);
     setDraft({ name: climb.name, setterGrade: climb.setterGrade, notes: climb.notes, selected });
     setEditingClimbId(climb.id);
@@ -482,7 +482,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const highlightedDraftHolds = selectedVersion
     ? selectedVersion.holds
     .filter((hold) => selectedHoldSet.has(hold.canonicalHoldId))
-    .map((hold) => ({ hold, role: (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft.selected[candidate].includes(hold.canonicalHoldId)) }))
+    .map((hold) => ({ hold, role: (['start', 'middle', 'foot', 'finish'] as HoldRole[]).find((candidate) => draft.selected[candidate].includes(hold.canonicalHoldId)) }))
     : [];
 
   const roleSummary = (role: HoldRole) => selectedVersion ? draft.selected[role].map((holdId) => selectedVersion.holds.find((hold) => hold.canonicalHoldId === holdId)?.label).filter(Boolean).join(', ') || 'None selected' : 'No layout selected';
@@ -630,16 +630,17 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               </div>
               <div>
                 <label className="label">Current picker mode</label>
-                <div className="row">{(['start', 'middle', 'finish'] as HoldRole[]).map((role) => <button key={role} className={`button ${selectedRole === role ? '' : 'secondary'}`} type="button" onClick={() => setSelectedRole(role)}>{role}</button>)}</div>
+                <div className="row">{(['start', 'middle', 'foot', 'finish'] as HoldRole[]).map((role) => <button key={role} className={`button ${selectedRole === role ? '' : 'secondary'}`} type="button" onClick={() => setSelectedRole(role)}>{role}</button>)}</div>
               </div>
             </div>
             <div>
               <label className="label">Tap holds on the wall</label>
               <InteractiveWall version={selectedVersion} selectedRole={selectedRole} draft={draft.selected} onToggleHold={toggleHold} />
             </div>
-            <div className="grid grid-3 mobile-grid-1">
+            <div className="grid grid-4 mobile-grid-1">
               <div className="card col"><strong>Start holds</strong><span className="small">{roleSummary('start')}</span></div>
               <div className="card col"><strong>Middle holds</strong><span className="small">{roleSummary('middle')}</span></div>
+              <div className="card col"><strong>Foot holds</strong><span className="small">{roleSummary('foot')}</span></div>
               <div className="card col"><strong>Finish holds</strong><span className="small">{roleSummary('finish')}</span></div>
             </div>
             <div>
@@ -896,6 +897,7 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
           <div className="row">
             <span className="route-chip">start: {groups.start.map((hold) => hold.label).join(', ') || '—'}</span>
             <span className="route-chip">middle: {groups.middle.map((hold) => hold.label).join(', ') || '—'}</span>
+            <span className="route-chip">foot: {groups.foot.map((hold) => hold.label).join(', ') || '—'}</span>
             <span className="route-chip">finish: {groups.finish.map((hold) => hold.label).join(', ') || '—'}</span>
           </div>
           {status && <div className="badge">current layout status: {status.status}</div>}
@@ -947,9 +949,9 @@ function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { versi
       </div>
       <div className="wall-preview-inner">
         {version.holds.map((hold: Hold) => {
-          const role = (['start', 'middle', 'finish'] as HoldRole[]).find((candidate) => draft[candidate].includes(hold.canonicalHoldId));
+          const role = (['start', 'middle', 'foot', 'finish'] as HoldRole[]).find((candidate) => draft[candidate].includes(hold.canonicalHoldId));
           const isSelected = Boolean(role);
-          const roleColor = role === 'start' ? '#32d74b' : role === 'middle' ? '#bf5af2' : role === 'finish' ? '#ff453a' : '#ffffff';
+          const roleColor = role === 'start' ? '#32d74b' : role === 'middle' ? '#bf5af2' : role === 'foot' ? '#f59e0b' : role === 'finish' ? '#ff453a' : '#ffffff';
           return <button key={hold.id} type="button" className={`hold-button ${isSelected ? 'selected' : ''}`} title={`${hold.label} · add as ${selectedRole}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: roleColor }} onClick={() => onToggleHold(hold.canonicalHoldId)}><span>{hold.label}</span></button>;
         })}
       </div>

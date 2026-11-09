@@ -1,7 +1,7 @@
 export type Role = 'admin' | 'member';
 export type ChangeType = 'additive' | 'modified' | 'reset';
 export type HoldStatus = 'active' | 'moved' | 'removed' | 'added';
-export type HoldRole = 'start' | 'middle' | 'finish';
+export type HoldRole = 'start' | 'middle' | 'foot' | 'finish';
 export type CompatibilityStatus = 'compatible' | 'needs_review' | 'incompatible';
 
 export type User = {

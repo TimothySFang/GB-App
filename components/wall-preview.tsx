@@ -3,6 +3,7 @@ import { Hold, HoldRole, WallVersion } from '@/lib/types';
 const roleColor: Record<HoldRole, string> = {
   start: '#32d74b',
   middle: '#bf5af2',
+  foot: '#f59e0b',
   finish: '#ff453a'
 };
 

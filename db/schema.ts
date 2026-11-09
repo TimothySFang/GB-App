@@ -60,7 +60,7 @@ export const climbHolds = sqliteTable("climb_holds", {
   id: text("id").primaryKey(),
   climbId: text("climb_id").notNull().references(() => climbs.id, { onDelete: "cascade" }),
   holdId: text("hold_id").notNull().references(() => holds.id, { onDelete: "cascade" }),
-  role: text("role", { enum: ["start", "middle", "finish"] }).notNull(),
+  role: text("role", { enum: ["start", "middle", "foot", "finish"] }).notNull(),
   orderIndex: integer("order_index").notNull().default(0),
 });
 

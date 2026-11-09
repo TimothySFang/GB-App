@@ -43,7 +43,7 @@ export function holdsForVersion(version: WallVersion) {
 
 export function groupClimbHolds(climb: Climb, version: WallVersion) {
   const byId = holdsForVersion(version);
-  const groups: Record<HoldRole, Hold[]> = { start: [], middle: [], finish: [] };
+  const groups: Record<HoldRole, Hold[]> = { start: [], middle: [], foot: [], finish: [] };
   for (const ref of climb.holds.sort((a, b) => a.order - b.order)) {
     const hold = byId.get(ref.holdId);
     if (hold) groups[ref.role].push(hold);
