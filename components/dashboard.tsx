@@ -490,6 +490,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   if (detailClimb) {
     return (
       <div className="container col mobile-shell">
+        <AppHeader name={data.currentUser.name} section="Climb detail" />
         {requestError ? <div className="card auth-error">{requestError}</div> : null}
         <button className="button secondary" onClick={() => setDetailClimbId(null)}>← Back to climbs</button>
         <FullScreenClimbPage
@@ -515,6 +516,10 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   return (
     <div className="container col mobile-shell">
+      <AppHeader
+        name={data.currentUser.name}
+        section={{ home: 'Overview', climbs: 'Climb library', new: editingClimbId ? 'Edit climb' : 'Set a climb', versions: 'Wall layouts', profile: 'Profile' }[activeTab]}
+      />
       {requestError ? <div className="card auth-error">{requestError}</div> : null}
       {activeTab === 'home' && (
         <div className="grid grid-2 mobile-grid-1">
@@ -827,6 +832,24 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         ))}
       </nav>
     </div>
+  );
+}
+
+function AppHeader({ name, section }: { name: string; section: string }) {
+  return (
+    <header className="app-header">
+      <div className="brand-lockup">
+        <div className="brand-mark" aria-hidden="true"><span>GB</span></div>
+        <div>
+          <div className="brand-name">GB WALL</div>
+          <div className="brand-subtitle">Home climbing, mapped.</div>
+        </div>
+      </div>
+      <div className="header-context">
+        <span className="header-section">{section}</span>
+        <span className="header-user">{name}</span>
+      </div>
+    </header>
   );
 }
 
