@@ -235,6 +235,27 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     showActivityNotice('Repeat added to your history.');
   };
 
+  const removeLatestRepeat = async (climbId: string) => {
+    setRequestError('');
+    const res = await fetch(`/api/climbs/${climbId}/repeat`, { method: 'DELETE' }).catch(() => null);
+    if (!res) {
+      setRequestError('Could not remove the repeat.');
+      return;
+    }
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+    const payload = await res.json() as { removedRepeatId: string };
+    updateClimb(climbId, (climb) => ({ ...climb, repeats: (climb.repeats ?? []).filter((repeat) => repeat.id !== payload.removedRepeatId) }));
+    showActivityNotice('Latest repeat removed.');
+  };
+
+  const advanceClimbProgress = (climb: Climb) => {
+    if (hasSent(climb, currentUserId)) return addRepeat(climb.id);
+    return markSent(climb.id, suggestedSendGrade(climb));
+  };
+
   const suggestedSendGrade = (climb: Climb) => {
     const voted = communityGrade(climb);
     return climb.setterGrade || (voted !== 'No votes' ? voted : 'V0');
@@ -597,14 +618,14 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         <div className="card col home-climbs-card">
           <div>
             <h2 className="section-title">Quick climb actions</h2>
-            <p className="section-subtitle">Swipe right to add a repeat or left to mark a climb sent.</p>
+            <p className="section-subtitle">Swipe right to send or repeat. Swipe left to remove your latest repeat.</p>
           </div>
           <div className="list">
             {!homeClimbs.length ? <div className="small">No climbs on this layout yet.</div> : null}
             {homeClimbs.map((climb) => {
               const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latest;
               if (!baseVersion) return null;
-              return <SwipeableClimbCard key={`home-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} onOpen={() => setDetailClimbId(climb.id)} onRepeat={() => addRepeat(climb.id)} onSend={() => markSent(climb.id, suggestedSendGrade(climb))} />;
+              return <SwipeableClimbCard key={`home-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} onOpen={() => setDetailClimbId(climb.id)} onAdvance={() => advanceClimbProgress(climb)} onRemoveRepeat={() => removeLatestRepeat(climb.id)} />;
             })}
           </div>
         </div>
@@ -641,7 +662,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               const compatibility = latest && climb.wallVersionId !== latest.id ? getCompatibility(climb.id, latest.id, data.compatibility) : null;
               if (!baseVersion) return null;
               return (
-                <SwipeableClimbCard key={`library-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} selected={selectedClimbId === climb.id} compatibility={compatibility?.status} onOpen={() => { setSelectedClimbId(climb.id); setDetailClimbId(climb.id); }} onRepeat={() => addRepeat(climb.id)} onSend={() => markSent(climb.id, suggestedSendGrade(climb))} />
+                <SwipeableClimbCard key={`library-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} selected={selectedClimbId === climb.id} compatibility={compatibility?.status} onOpen={() => { setSelectedClimbId(climb.id); setDetailClimbId(climb.id); }} onAdvance={() => advanceClimbProgress(climb)} onRemoveRepeat={() => removeLatestRepeat(climb.id)} />
               );
             })}
           </div>
@@ -890,11 +911,12 @@ function AppHeader({ name, section }: { name: string; section: string }) {
   );
 }
 
-function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false, compatibility, onOpen, onRepeat, onSend }: { climb: Climb; layoutName: string; currentUserId: string; selected?: boolean; compatibility?: string; onOpen: () => void; onRepeat: () => void; onSend: () => void }) {
+function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false, compatibility, onOpen, onAdvance, onRemoveRepeat }: { climb: Climb; layoutName: string; currentUserId: string; selected?: boolean; compatibility?: string; onOpen: () => void; onAdvance: () => void; onRemoveRepeat: () => void }) {
   const [offset, setOffset] = useState(0);
   const gesture = useRef<{ startX: number; moved: boolean } | null>(null);
   const favorite = isFavorited(climb, currentUserId);
   const sent = hasSent(climb, currentUserId);
+  const repeatCount = userRepeats(climb, currentUserId);
 
   const finishSwipe = () => {
     const next = offset > 54 ? 104 : offset < -54 ? -104 : 0;
@@ -907,8 +929,8 @@ function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false
   return (
     <div className="swipe-card">
       <div className="swipe-actions" aria-hidden={offset === 0}>
-        <button className="swipe-action repeat-action" type="button" onClick={() => { onRepeat(); setOffset(0); }}>Repeat +1</button>
-        <button className="swipe-action sent-action" type="button" disabled={sent} onClick={() => { onSend(); setOffset(0); }}>{sent ? 'Sent' : 'Mark sent'}</button>
+        <button className="swipe-action repeat-action" type="button" onClick={() => { onAdvance(); setOffset(0); }}>{sent ? 'Repeat +1' : 'Mark sent'}</button>
+        <button className="swipe-action remove-repeat-action" type="button" disabled={!repeatCount} onClick={() => { onRemoveRepeat(); setOffset(0); }}>Repeat −1</button>
       </div>
       <button
         type="button"
@@ -950,7 +972,7 @@ function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false
         <div className="row climb-card-badges">
           {favorite && <span className="badge">favorite</span>}
           {sent && <span className="badge">sent</span>}
-          {userRepeats(climb, currentUserId) > 0 && <span className="badge">your repeats {userRepeats(climb, currentUserId)}</span>}
+          {repeatCount > 0 && <span className="badge">your repeats {repeatCount}</span>}
           {compatibility && <span className="badge">{compatibility}</span>}
           <span className="swipe-hint">Swipe ↔</span>
         </div>

@@ -21,3 +21,19 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
 
   return NextResponse.json({ repeat });
 }
+
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await requireAuthenticatedUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: climbId } = await params;
+  const repeat = await first<{ id: string }>(
+    "SELECT id FROM climb_repeats WHERE climb_id = ? AND user_id = ? ORDER BY repeated_at DESC, rowid DESC LIMIT 1",
+    climbId,
+    user.id,
+  );
+  if (!repeat) return NextResponse.json({ error: "No repeat to remove" }, { status: 404 });
+
+  await getD1().prepare("DELETE FROM climb_repeats WHERE id = ?").bind(repeat.id).run();
+  return NextResponse.json({ removedRepeatId: repeat.id });
+}
