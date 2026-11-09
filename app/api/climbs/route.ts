@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     notes?: string;
     holds?: Array<{ holdId: string; role: HoldRole; order: number }>;
   };
-  if (!wallVersionId || !name || !setterGrade || !Array.isArray(holds) || !holds.length) {
+  if (!wallVersionId || !name || !Array.isArray(holds) || !holds.length) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   await db.batch([
     db.prepare(`INSERT INTO climbs (id, wall_version_id, created_by_user_id, name, setter_grade, notes)
       VALUES (?, ?, ?, ?, ?, ?)`)
-      .bind(id, wallVersionId, user.id, name.trim(), setterGrade, notes ?? ""),
+      .bind(id, wallVersionId, user.id, name.trim(), setterGrade?.trim() || null, notes ?? ""),
     ...resolved.map((item) =>
       db.prepare("INSERT INTO climb_holds (id, climb_id, hold_id, role, order_index) VALUES (?, ?, ?, ?, ?)")
         .bind(crypto.randomUUID(), id, item.hold!.id, item.ref.role, item.ref.order)),

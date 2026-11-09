@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -97,3 +97,13 @@ export const climbSends = sqliteTable("climb_sends", {
   grade: text("grade").notNull(),
   sentAt: text("sent_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [primaryKey({ columns: [table.climbId, table.userId] })]);
+
+export const climbRepeats = sqliteTable("climb_repeats", {
+  id: text("id").primaryKey(),
+  climbId: text("climb_id").notNull().references(() => climbs.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  repeatedAt: text("repeated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("climb_repeats_climb_idx").on(table.climbId),
+  index("climb_repeats_user_idx").on(table.userId),
+]);

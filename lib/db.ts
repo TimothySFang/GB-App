@@ -49,7 +49,7 @@ async function ensureInitialWall() {
 export async function getDashboardData(currentUserId: string): Promise<DashboardData> {
   await ensureInitialWall();
 
-  const [users, wall, versions, holds, climbs, climbHolds, ratings, gradeVotes, favorites, sends, compatibility] = await Promise.all([
+  const [users, wall, versions, holds, climbs, climbHolds, ratings, gradeVotes, favorites, sends, repeats, compatibility] = await Promise.all([
     all<UserRow>("SELECT id, email, display_name AS displayName, role FROM users ORDER BY created_at"),
     first<WallRow>("SELECT id, name, notes FROM walls ORDER BY created_at LIMIT 1"),
     all<VersionRow>(`SELECT id, wall_id AS wallId, parent_version_id AS parentVersionId,
@@ -58,9 +58,9 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
       photo_rotation AS photoRotation, notes FROM wall_versions ORDER BY created_at`),
     all<HoldRow>(`SELECT id, canonical_hold_id AS canonicalHoldId, wall_version_id AS wallVersionId,
       label, color, x, y, status FROM holds ORDER BY created_at`),
-    all<{ id: string; wallVersionId: string; createdByUserId: string; createdByName: string; name: string; setterGrade: string | null; notes: string | null }>(`SELECT c.id, c.wall_version_id AS wallVersionId,
+    all<{ id: string; wallVersionId: string; createdByUserId: string; createdByName: string; createdAt: string; name: string; setterGrade: string | null; notes: string | null }>(`SELECT c.id, c.wall_version_id AS wallVersionId,
       c.created_by_user_id AS createdByUserId, u.display_name AS createdByName,
-      c.name, c.setter_grade AS setterGrade, c.notes
+      c.created_at AS createdAt, c.name, c.setter_grade AS setterGrade, c.notes
       FROM climbs c JOIN users u ON u.id = c.created_by_user_id ORDER BY c.created_at`),
     all<{ climbId: string; canonicalHoldId: string; role: HoldRole; orderIndex: number }>(`SELECT ch.climb_id AS climbId,
       h.canonical_hold_id AS canonicalHoldId, ch.role, ch.order_index AS orderIndex
@@ -69,6 +69,7 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
     all<{ climbId: string; userId: string; grade: string }>("SELECT climb_id AS climbId, user_id AS userId, suggested_grade AS grade FROM climb_grade_votes"),
     all<{ climbId: string; userId: string }>("SELECT climb_id AS climbId, user_id AS userId FROM favorites"),
     all<{ climbId: string; userId: string; grade: string; sentAt: string }>("SELECT climb_id AS climbId, user_id AS userId, grade, sent_at AS sentAt FROM climb_sends"),
+    all<{ id: string; climbId: string; userId: string; repeatedAt: string }>("SELECT id, climb_id AS climbId, user_id AS userId, repeated_at AS repeatedAt FROM climb_repeats ORDER BY repeated_at DESC"),
     all<{ climbId: string; targetWallVersionId: string; status: CompatibilityStatus; reason: string | null }>(`SELECT climb_id AS climbId,
       target_wall_version_id AS targetWallVersionId, status, reason FROM climb_compatibility ORDER BY climb_id`),
   ]);
@@ -112,6 +113,7 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
       wallVersionId: climb.wallVersionId,
       createdByUserId: climb.createdByUserId,
       createdByName: climb.createdByName,
+      createdAt: climb.createdAt,
       name: climb.name,
       setterGrade: climb.setterGrade ?? "",
       notes: climb.notes ?? "",
@@ -120,6 +122,7 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
       gradeVotes: gradeVotes.filter((item) => item.climbId === climb.id).map(({ userId, grade }) => ({ userId, grade })),
       favorites: favorites.filter((item) => item.climbId === climb.id).map((item) => item.userId),
       sends: sends.filter((item) => item.climbId === climb.id).map(({ userId, grade, sentAt }) => ({ userId, grade, sentAt: sentAt.slice(0, 10) })),
+      repeats: repeats.filter((item) => item.climbId === climb.id).map(({ id, userId, repeatedAt }) => ({ id, userId, repeatedAt })),
     })),
     compatibility: compatibility.map((item) => ({ ...item, reason: item.reason ?? "" })),
   };

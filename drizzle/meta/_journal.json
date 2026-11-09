@@ -15,6 +15,13 @@
       "when": 1794238377099,
       "tag": "0001_remove_demo_data",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794241369826,
+      "tag": "0002_tricky_mockingbird",
+      "breakpoints": true
     }
   ]
 }

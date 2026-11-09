@@ -1,12 +1,13 @@
 'use client';
 
 import { ChangeEvent, PointerEvent, useMemo, useRef, useState } from 'react';
-import { averageRating, communityGrade, getCompatibility, getLatestVersion, groupClimbHolds, hasSent, isFavorited } from '@/lib/utils';
-import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating, DashboardData } from '@/lib/types';
+import { averageRating, communityGrade, getCompatibility, getLatestVersion, groupClimbHolds, hasSent, isFavorited, totalRepeats, userRepeats } from '@/lib/utils';
+import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating, DashboardData, Repeat } from '@/lib/types';
 import { WallPreview } from './wall-preview';
 
 type TabId = 'home' | 'climbs' | 'new' | 'versions' | 'profile';
 type ClimbFilter = 'all' | 'favorites' | 'sent';
+type ClimbSort = 'newest' | 'repeats' | 'rating';
 type LayoutMode = 'edit' | 'create';
 
 type DraftState = {
@@ -48,10 +49,13 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const [climbSearch, setClimbSearch] = useState('');
   const [climbFilter, setClimbFilter] = useState<ClimbFilter>('all');
   const [gradeFilter, setGradeFilter] = useState('all');
+  const [climbSort, setClimbSort] = useState<ClimbSort>('newest');
   const [detailClimbId, setDetailClimbId] = useState<string | null>(null);
   const [ratingDraft, setRatingDraft] = useState<number>(5);
   const [sendGradeDraft, setSendGradeDraft] = useState('V3');
   const [requestError, setRequestError] = useState('');
+  const [activityNotice, setActivityNotice] = useState('');
+  const activityNoticeTimer = useRef<number | null>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('edit');
   const [savingLayout, setSavingLayout] = useState(false);
   const [dirtyLayoutIds, setDirtyLayoutIds] = useState<Set<string>>(new Set());
@@ -76,7 +80,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const isAdminUser = data.currentUser.role === 'admin';
 
   const filteredClimbs = useMemo(() => {
-    return climbs.filter((climb) => {
+    const filtered = climbs.filter((climb) => {
       const matchesLayout = !selectedVersionId || climb.wallVersionId === selectedVersionId;
       const matchesSearch = climb.name.toLowerCase().includes(climbSearch.toLowerCase()) || climb.createdByName.toLowerCase().includes(climbSearch.toLowerCase());
       const matchesGrade = gradeFilter === 'all' || climb.setterGrade === gradeFilter || communityGrade(climb) === gradeFilter;
@@ -84,11 +88,21 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       const matchesSent = climbFilter !== 'sent' || hasSent(climb, currentUserId);
       return matchesLayout && matchesSearch && matchesGrade && matchesFavorite && matchesSent;
     });
-  }, [climbs, climbSearch, gradeFilter, climbFilter, currentUserId, selectedVersionId]);
+    return filtered.sort((a, b) => {
+      if (climbSort === 'repeats') return totalRepeats(b) - totalRepeats(a);
+      if (climbSort === 'rating') return Number(averageRating(b) ?? 0) - Number(averageRating(a) ?? 0);
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+  }, [climbs, climbSearch, gradeFilter, climbFilter, climbSort, currentUserId, selectedVersionId]);
 
   const profileCreated = climbs.filter((climb) => climb.createdByUserId === currentUserId);
   const profileFavorites = climbs.filter((climb) => isFavorited(climb, currentUserId));
   const profileSent = climbs.filter((climb) => hasSent(climb, currentUserId));
+  const profileRepeats = climbs.flatMap((climb) => (climb.repeats ?? [])
+    .filter((repeat) => repeat.userId === currentUserId)
+    .map((repeat) => ({ ...repeat, climb })))
+    .sort((a, b) => b.repeatedAt.localeCompare(a.repeatedAt));
+  const homeClimbs = climbs.filter((climb) => !selectedVersionId || climb.wallVersionId === selectedVersionId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
   const layoutHasUnsavedChanges = selectedVersion ? dirtyLayoutIds.has(selectedVersion.id) : false;
 
   const markLayoutDirty = (versionId: string) => {
@@ -135,6 +149,12 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     } catch {
       return 'Request failed';
     }
+  };
+
+  const showActivityNotice = (message: string) => {
+    setActivityNotice(message);
+    if (activityNoticeTimer.current) window.clearTimeout(activityNoticeTimer.current);
+    activityNoticeTimer.current = window.setTimeout(() => setActivityNotice(''), 2600);
   };
 
   const toggleFavorite = async (climbId: string) => {
@@ -196,6 +216,28 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         gradeVotes: [...otherVotes, { userId: currentUserId, grade }]
       };
     });
+    showActivityNotice('Climb marked as sent.');
+  };
+
+  const addRepeat = async (climbId: string) => {
+    setRequestError('');
+    const res = await fetch(`/api/climbs/${climbId}/repeat`, { method: 'POST' }).catch(() => null);
+    if (!res) {
+      setRequestError('Could not add the repeat.');
+      return;
+    }
+    if (!res.ok) {
+      setRequestError(await readError(res));
+      return;
+    }
+    const payload = await res.json() as { repeat: Repeat };
+    updateClimb(climbId, (climb) => ({ ...climb, repeats: [payload.repeat, ...(climb.repeats ?? [])] }));
+    showActivityNotice('Repeat added to your history.');
+  };
+
+  const suggestedSendGrade = (climb: Climb) => {
+    const voted = communityGrade(climb);
+    return climb.setterGrade || (voted !== 'No votes' ? voted : 'V0');
   };
 
   const createVersionFromDraft = async () => {
@@ -388,7 +430,6 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     if (!selectedVersion) return setFormError('Create a layout before saving climbs.');
     if (layoutHasUnsavedChanges) return setFormError('Save layout changes before saving a climb on this layout.');
     if (!draft.name.trim()) return setFormError('Climb name is required.');
-    if (!draft.setterGrade.trim()) return setFormError('Setter grade is required.');
     if (!draft.selected.start.length || !draft.selected.finish.length) return setFormError('At least one start hold and one finish hold are required.');
     setFormError('');
     setRequestError('');
@@ -401,6 +442,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       wallVersionId: selectedVersion.id,
       createdByUserId: currentUserId,
       createdByName: data.currentUser.name,
+      createdAt: previous?.createdAt ?? new Date().toISOString(),
       name: draft.name.trim(),
       setterGrade: draft.setterGrade.trim(),
       notes: draft.notes.trim(),
@@ -408,7 +450,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       ratings: previous?.ratings ?? [],
       gradeVotes: previous?.gradeVotes ?? [],
       favorites: previous?.favorites ?? [],
-      sends: previous?.sends ?? []
+      sends: previous?.sends ?? [],
+      repeats: previous?.repeats ?? []
     };
     const method = editingClimbId ? 'PATCH' : 'POST';
     const url = editingClimbId ? `/api/climbs/${editingClimbId}` : '/api/climbs';
@@ -492,6 +535,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       <div className="container col mobile-shell">
         <AppHeader name={data.currentUser.name} section="Climb detail" />
         {requestError ? <div className="card auth-error">{requestError}</div> : null}
+        {activityNotice ? <div className="activity-notice" role="status">{activityNotice}</div> : null}
         <button className="button secondary" onClick={() => setDetailClimbId(null)}>← Back to climbs</button>
         <FullScreenClimbPage
           climb={detailClimb}
@@ -503,6 +547,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
           onFavorite={() => toggleFavorite(detailClimb.id)}
           onRate={(stars) => saveRating(detailClimb.id, stars)}
           onSend={(grade) => markSent(detailClimb.id, grade)}
+          onRepeat={() => addRepeat(detailClimb.id)}
           onEdit={() => startEditing(detailClimb)}
           onDelete={() => deleteClimb(detailClimb)}
           ratingDraft={ratingDraft}
@@ -521,13 +566,16 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         section={{ home: 'Overview', climbs: 'Climb library', new: editingClimbId ? 'Edit climb' : 'Set a climb', versions: 'Wall layouts', profile: 'Profile' }[activeTab]}
       />
       {requestError ? <div className="card auth-error">{requestError}</div> : null}
+      {activityNotice ? <div className="activity-notice" role="status">{activityNotice}</div> : null}
       {activeTab === 'home' && (
+        <div className="home-dashboard">
         <div className="grid grid-2 mobile-grid-1">
           <div className="card col">
             <h2 className="section-title">Quick stats</h2>
             <div className="stats-row">
               <div className="stat-pill"><span className="small">Created</span><strong>{profileCreated.length}</strong></div>
               <div className="stat-pill"><span className="small">Sent</span><strong>{profileSent.length}</strong></div>
+              <div className="stat-pill"><span className="small">Repeats</span><strong>{profileRepeats.length}</strong></div>
               <div className="stat-pill"><span className="small">Favorites</span><strong>{profileFavorites.length}</strong></div>
               <div className="stat-pill"><span className="small">Layouts</span><strong>{versions.length}</strong></div>
             </div>
@@ -546,61 +594,54 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             {selectedVersion ? <WallPreview version={selectedVersion} uniformColor="#22c55e" /> : <EmptyState message="No layouts yet. Create one in the Layouts tab to start tracking holds and climbs." />}
           </div>
         </div>
+        <div className="card col home-climbs-card">
+          <div>
+            <h2 className="section-title">Quick climb actions</h2>
+            <p className="section-subtitle">Swipe right to add a repeat or left to mark a climb sent.</p>
+          </div>
+          <div className="list">
+            {!homeClimbs.length ? <div className="small">No climbs on this layout yet.</div> : null}
+            {homeClimbs.map((climb) => {
+              const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latest;
+              if (!baseVersion) return null;
+              return <SwipeableClimbCard key={`home-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} onOpen={() => setDetailClimbId(climb.id)} onRepeat={() => addRepeat(climb.id)} onSend={() => markSent(climb.id, suggestedSendGrade(climb))} />;
+            })}
+          </div>
+        </div>
+        </div>
       )}
 
       {activeTab === 'climbs' && (
         <div className="col">
-          <div className="card col">
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h2 className="section-title">Search & filters</h2>
-                <p className="section-subtitle">Search by climb name, filter by grade, favorites, or sent status.</p>
-              </div>
-              <div className="compact-field">
-                <label className="label">Layout filter</label>
-                <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
-              </div>
-            </div>
-            <div className="grid grid-3 mobile-grid-1">
-              <input className="input" placeholder="Search climbs or setters" value={climbSearch} onChange={(e) => setClimbSearch(e.target.value)} />
-              <select className="select" value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
+          <div className="card filter-card">
+            <h2 className="section-title">Find climbs</h2>
+            <div className="filter-grid">
+              <div className="filter-search"><label className="label" htmlFor="climb-search">Search</label><input id="climb-search" className="input" placeholder="Name or setter" value={climbSearch} onChange={(e) => setClimbSearch(e.target.value)} /></div>
+              <div><label className="label">Layout</label><VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} /></div>
+              <div><label className="label" htmlFor="grade-filter">Grade</label><select id="grade-filter" className="select" value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
                 <option value="all">All grades</option>
                 {['VB','V0','V1','V2','V3','V4','V5','V6'].map((grade) => <option key={grade} value={grade}>{grade}</option>)}
-              </select>
-              <select className="select" value={climbFilter} onChange={(e) => setClimbFilter(e.target.value as ClimbFilter)}>
+              </select></div>
+              <div><label className="label" htmlFor="status-filter">Status</label><select id="status-filter" className="select" value={climbFilter} onChange={(e) => setClimbFilter(e.target.value as ClimbFilter)}>
                 <option value="all">All climbs</option>
                 <option value="favorites">Favorites only</option>
                 <option value="sent">Sent only</option>
-              </select>
+              </select></div>
+              <div><label className="label" htmlFor="sort-filter">Sort</label><select id="sort-filter" className="select" value={climbSort} onChange={(e) => setClimbSort(e.target.value as ClimbSort)}>
+                <option value="newest">Newest</option>
+                <option value="repeats">Most repeats</option>
+                <option value="rating">Top rated</option>
+              </select></div>
             </div>
           </div>
           <div className="list">
             {!filteredClimbs.length ? <div className="card small">{hasLayouts ? 'No climbs match this layout/filter yet.' : 'No layouts yet, so there are no climbs to show.'}</div> : null}
             {filteredClimbs.map((climb) => {
               const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latest;
-              const favorite = isFavorited(climb, currentUserId);
-              const sent = hasSent(climb, currentUserId);
               const compatibility = latest && climb.wallVersionId !== latest.id ? getCompatibility(climb.id, latest.id, data.compatibility) : null;
               if (!baseVersion) return null;
               return (
-                <button key={climb.id} className={`card climb-list-button ${selectedClimbId === climb.id ? 'selected-panel' : ''}`} onClick={() => { setSelectedClimbId(climb.id); setDetailClimbId(climb.id); }}>
-                  <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <strong>{climb.name}</strong>
-                      <div className="small">by {climb.createdByName} · {baseVersion.name}</div>
-                      <div className="small">setter {climb.setterGrade} · community {communityGrade(climb)}</div>
-                    </div>
-                    <div className="col" style={{ alignItems: 'flex-end' }}>
-                      <span className="route-chip">★ {averageRating(climb) ?? '—'}</span>
-                      <span className="route-chip">♥ {(climb.favorites ?? []).length}</span>
-                    </div>
-                  </div>
-                  <div className="row">
-                    {favorite && <span className="badge">favorite</span>}
-                    {sent && <span className="badge">sent</span>}
-                    {compatibility && <span className="badge">{compatibility.status}</span>}
-                  </div>
-                </button>
+                <SwipeableClimbCard key={`library-${climb.id}`} climb={climb} layoutName={baseVersion.name} currentUserId={currentUserId} selected={selectedClimbId === climb.id} compatibility={compatibility?.status} onOpen={() => { setSelectedClimbId(climb.id); setDetailClimbId(climb.id); }} onRepeat={() => addRepeat(climb.id)} onSend={() => markSent(climb.id, suggestedSendGrade(climb))} />
               );
             })}
           </div>
@@ -630,8 +671,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             </div>
             <div className="grid grid-2 mobile-grid-1">
               <div>
-                <label className="label">Setter grade</label>
-                <input className="input" placeholder="V4" value={draft.setterGrade} onChange={(e) => setDraft((current) => ({ ...current, setterGrade: e.target.value }))} />
+                <label className="label">Setter grade <span className="optional-label">Optional</span></label>
+                <input className="input" placeholder="Leave blank if ungraded" value={draft.setterGrade} onChange={(e) => setDraft((current) => ({ ...current, setterGrade: e.target.value }))} />
               </div>
               <div>
                 <label className="label">Current picker mode</label>
@@ -803,16 +844,12 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       {activeTab === 'profile' && (
         <>
           <SessionHeader name={data.currentUser.name} email={data.currentUser.email} role={data.currentUser.role} />
-          <div className="card">
-            <div className="badge">GB App</div>
-            <h1 className="page-title">Profile</h1>
-            <p className="page-subtitle">Your climbs, favorites, and sends.</p>
-          </div>
           <div className="grid grid-3 mobile-grid-1">
             <ProfileColumn title="Created" climbs={profileCreated} onOpen={(id) => setDetailClimbId(id)} />
             <ProfileColumn title="Favorites" climbs={profileFavorites} onOpen={(id) => setDetailClimbId(id)} />
             <ProfileColumn title="Sent" climbs={profileSent} onOpen={(id) => setDetailClimbId(id)} />
           </div>
+          <RepeatHistory repeats={profileRepeats} onOpen={(id) => setDetailClimbId(id)} />
         </>
       )}
 
@@ -853,6 +890,75 @@ function AppHeader({ name, section }: { name: string; section: string }) {
   );
 }
 
+function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false, compatibility, onOpen, onRepeat, onSend }: { climb: Climb; layoutName: string; currentUserId: string; selected?: boolean; compatibility?: string; onOpen: () => void; onRepeat: () => void; onSend: () => void }) {
+  const [offset, setOffset] = useState(0);
+  const gesture = useRef<{ startX: number; moved: boolean } | null>(null);
+  const favorite = isFavorited(climb, currentUserId);
+  const sent = hasSent(climb, currentUserId);
+
+  const finishSwipe = () => {
+    const next = offset > 54 ? 104 : offset < -54 ? -104 : 0;
+    setOffset(next);
+    window.setTimeout(() => {
+      if (gesture.current) gesture.current.moved = false;
+    }, 0);
+  };
+
+  return (
+    <div className="swipe-card">
+      <div className="swipe-actions" aria-hidden={offset === 0}>
+        <button className="swipe-action repeat-action" type="button" onClick={() => { onRepeat(); setOffset(0); }}>Repeat +1</button>
+        <button className="swipe-action sent-action" type="button" disabled={sent} onClick={() => { onSend(); setOffset(0); }}>{sent ? 'Sent' : 'Mark sent'}</button>
+      </div>
+      <button
+        type="button"
+        className={`card climb-list-button swipe-card-face ${selected ? 'selected-panel' : ''}`}
+        style={{ transform: `translateX(${offset}px)` }}
+        onPointerDown={(event) => {
+          gesture.current = { startX: event.clientX, moved: false };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          if (!gesture.current) return;
+          const delta = event.clientX - gesture.current.startX;
+          if (Math.abs(delta) > 7) gesture.current.moved = true;
+          setOffset(clamp(delta, -122, 122));
+        }}
+        onPointerUp={finishSwipe}
+        onPointerCancel={finishSwipe}
+        onClick={() => {
+          if (gesture.current?.moved) return;
+          if (offset) {
+            setOffset(0);
+            return;
+          }
+          onOpen();
+        }}
+      >
+        <div className="climb-card-main">
+          <div>
+            <strong>{climb.name}</strong>
+            <div className="small">by {climb.createdByName} · {layoutName}</div>
+            <div className="small">{climb.setterGrade ? `setter ${climb.setterGrade} · ` : ''}community {communityGrade(climb)}</div>
+          </div>
+          <div className="climb-card-stats">
+            <span className="route-chip">↻ {totalRepeats(climb)}</span>
+            <span className="route-chip">★ {averageRating(climb) ?? '—'}</span>
+            <span className="route-chip">♥ {(climb.favorites ?? []).length}</span>
+          </div>
+        </div>
+        <div className="row climb-card-badges">
+          {favorite && <span className="badge">favorite</span>}
+          {sent && <span className="badge">sent</span>}
+          {userRepeats(climb, currentUserId) > 0 && <span className="badge">your repeats {userRepeats(climb, currentUserId)}</span>}
+          {compatibility && <span className="badge">{compatibility}</span>}
+          <span className="swipe-hint">Swipe ↔</span>
+        </div>
+      </button>
+    </div>
+  );
+}
+
 function SessionHeader({ name, email, role }: { name: string; email: string; role: DashboardData['currentUser']['role'] }) {
   return (
     <div className="card session-card">
@@ -873,13 +979,32 @@ function ProfileColumn({ title, climbs, onOpen }: { title: string; climbs: Climb
     <div className="card col">
       <h2 className="section-title">{title}</h2>
       <div className="list">
-        {climbs.length ? climbs.map((climb) => <button key={climb.id} className="card climb-list-button" onClick={() => onOpen(climb.id)}><strong>{climb.name}</strong><div className="small">setter {climb.setterGrade} · community {communityGrade(climb)}</div></button>) : <div className="small">Nothing here yet.</div>}
+        {climbs.length ? climbs.map((climb) => <button key={climb.id} className="card climb-list-button" onClick={() => onOpen(climb.id)}><strong>{climb.name}</strong><div className="small">{climb.setterGrade ? `setter ${climb.setterGrade} · ` : ''}community {communityGrade(climb)}</div><div className="small">{totalRepeats(climb)} total repeats</div></button>) : <div className="small">Nothing here yet.</div>}
       </div>
     </div>
   );
 }
 
-function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft }: { climb: Climb; currentUserId: string; isAdminUser: boolean; versions: WallVersion[]; latestVersion: WallVersion | null; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; }) {
+function RepeatHistory({ repeats, onOpen }: { repeats: Array<Repeat & { climb: Climb }>; onOpen: (id: string) => void }) {
+  return (
+    <div className="card col">
+      <div>
+        <h2 className="section-title">Repeat history</h2>
+        <p className="section-subtitle">Every repeat you log, newest first.</p>
+      </div>
+      <div className="repeat-history-list">
+        {repeats.length ? repeats.map((repeat) => (
+          <button key={repeat.id} className="repeat-history-row" onClick={() => onOpen(repeat.climb.id)}>
+            <strong>{repeat.climb.name}</strong>
+            <span>{new Date(repeat.repeatedAt).toLocaleString()}</span>
+          </button>
+        )) : <div className="small">No repeats logged yet.</div>}
+      </div>
+    </div>
+  );
+}
+
+function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onRepeat, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft }: { climb: Climb; currentUserId: string; isAdminUser: boolean; versions: WallVersion[]; latestVersion: WallVersion | null; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onRepeat: () => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; }) {
   const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latestVersion;
   if (!baseVersion) {
     return (
@@ -907,7 +1032,7 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
             <div>
               <h1 className="page-title">{climb.name}</h1>
               <div className="small">by {climb.createdByName} · {baseVersion.name}</div>
-              <div className="small">setter {climb.setterGrade} · community {communityGrade(climb)} · ★ {averageRating(climb) ?? '—'}</div>
+              <div className="small">{climb.setterGrade ? `setter ${climb.setterGrade} · ` : ''}community {communityGrade(climb)} · ★ {averageRating(climb) ?? '—'}</div>
             </div>
             <div className="row">
               {favorite && <span className="badge">favorite</span>}
@@ -936,12 +1061,15 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
             <label className="label">Mark sent with grade</label>
             <select className="select" value={sendGradeDraft} onChange={(e) => setSendGradeDraft(e.target.value)}>{['VB','V0','V1','V2','V3','V4','V5','V6'].map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select>
             <button className="button secondary" onClick={() => onSend(sendGradeDraft)}>{sent ? 'Update send grade' : 'Mark sent'}</button>
+            <button className="button" onClick={onRepeat}>Add repeat +1</button>
           </div>
           <div className="card col">
             <strong>Stats</strong>
             <span className="small">Favorites: {(climb.favorites ?? []).length}</span>
             <span className="small">Ratings: {climb.ratings.length}</span>
             <span className="small">Sends: {climb.sends?.length ?? 0}</span>
+            <span className="small">Your repeats: {userRepeats(climb, currentUserId)}</span>
+            <span className="small">Total repeats: {totalRepeats(climb)}</span>
             <span className="small">Community grade: {communityGrade(climb)}</span>
             <span className="small">Average rating: {averageRating(climb) ?? 'No ratings yet'}</span>
           </div>
@@ -968,7 +1096,7 @@ function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { versi
   return (
     <div className="wall-preview interactive-wall">
       <div className="wall-preview-image-layer" style={{ transform: `translate(${version.photoOffsetX}px, ${version.photoOffsetY}px) scale(${version.photoScale}) rotate(${version.photoRotation}deg)` }}>
-        <img className="wall-image" src={version.imageUrl} alt={version.name} />
+        {version.imageUrl ? <img className="wall-image" src={version.imageUrl} alt={version.name} /> : <div className="wall-empty-image">No wall photo yet</div>}
       </div>
       <div className="wall-preview-inner">
         {version.holds.map((hold: Hold) => {
@@ -1007,7 +1135,7 @@ function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHo
   return (
     <div ref={boardRef} className="wall-preview interactive-wall board-editor" onPointerDown={handleBoardClick} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
       <div className="wall-preview-image-layer" style={{ transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale}) rotate(${rotation}deg)` }}>
-        <img className="wall-image" src={version.imageUrl} alt={version.name} />
+        {version.imageUrl ? <img className="wall-image" src={version.imageUrl} alt={version.name} /> : <div className="wall-empty-image">No wall photo yet</div>}
       </div>
       <div className="wall-preview-inner">
         {version.holds.map((hold) => <button key={hold.id} type="button" className={`hold-button draggable ${activeHoldId === hold.id ? 'selected' : ''}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: '#22c55e' }} onPointerDown={(event) => { event.stopPropagation(); dragRef.current = { holdId: hold.id, pointerId: event.pointerId }; onSelectHold(hold.id); }}><span>{hold.label}</span></button>)}

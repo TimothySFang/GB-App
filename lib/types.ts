@@ -43,11 +43,18 @@ export type Send = {
   sentAt: string;
 };
 
+export type Repeat = {
+  id: string;
+  userId: string;
+  repeatedAt: string;
+};
+
 export type Climb = {
   id: string;
   wallVersionId: string;
   createdByUserId: string;
   createdByName: string;
+  createdAt: string;
   name: string;
   setterGrade: string;
   notes: string;
@@ -56,6 +63,7 @@ export type Climb = {
   gradeVotes: GradeVote[];
   favorites?: string[];
   sends?: Send[];
+  repeats?: Repeat[];
 };
 
 export type Compatibility = {

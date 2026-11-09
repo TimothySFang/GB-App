@@ -18,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     notes?: string;
     holds?: Array<{ holdId: string; role: HoldRole; order: number }>;
   };
-  if (!wallVersionId || !name || !setterGrade || !Array.isArray(holds) || !holds.length) {
+  if (!wallVersionId || !name || !Array.isArray(holds) || !holds.length) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
   const versionHolds = await all<{ id: string; canonicalHoldId: string }>(
@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const db = getD1();
   await db.batch([
     db.prepare(`UPDATE climbs SET wall_version_id = ?, name = ?, setter_grade = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-      .bind(wallVersionId, name.trim(), setterGrade, notes ?? "", id),
+      .bind(wallVersionId, name.trim(), setterGrade?.trim() || null, notes ?? "", id),
     db.prepare("DELETE FROM climb_holds WHERE climb_id = ?").bind(id),
     ...resolved.map((item) =>
       db.prepare("INSERT INTO climb_holds (id, climb_id, hold_id, role, order_index) VALUES (?, ?, ?, ?, ?)")

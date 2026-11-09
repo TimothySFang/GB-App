@@ -29,6 +29,14 @@ export function hasSent(climb: Climb, userId: string) {
   return climb.sends?.some((send) => send.userId === userId) ?? false;
 }
 
+export function totalRepeats(climb: Climb) {
+  return climb.repeats?.length ?? 0;
+}
+
+export function userRepeats(climb: Climb, userId: string) {
+  return climb.repeats?.filter((repeat) => repeat.userId === userId).length ?? 0;
+}
+
 export function getLatestVersion(data: DashboardData) {
   return data.wall.versions[data.wall.versions.length - 1] ?? null;
 }

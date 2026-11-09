@@ -35,8 +35,7 @@ export function WallPreview({
   return (
     <div className={`wall-preview ${wide ? 'wall-preview-wide' : ''}`}>
       <div className="wall-preview-image-layer" style={{ transform: `translate(${resolvedOffsetX}px, ${resolvedOffsetY}px) scale(${resolvedScale}) rotate(${resolvedRotation}deg)` }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="wall-image" src={version.imageUrl} alt={version.name} />
+        {version.imageUrl ? <img className="wall-image" src={version.imageUrl} alt={version.name} /> : <div className="wall-empty-image">No wall photo yet</div>}
       </div>
       <div className="wall-preview-inner">
         {highlights.map(({ hold, role }) => (
