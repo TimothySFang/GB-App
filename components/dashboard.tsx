@@ -618,7 +618,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         <div className="card col home-climbs-card">
           <div>
             <h2 className="section-title">Quick climb actions</h2>
-            <p className="section-subtitle">Swipe right to send or repeat. Swipe left to remove your latest repeat.</p>
+            <p className="section-subtitle">Swipe left to send or repeat. Swipe right to remove your latest repeat.</p>
           </div>
           <div className="list">
             {!homeClimbs.length ? <div className="small">No climbs on this layout yet.</div> : null}
@@ -913,47 +913,54 @@ function AppHeader({ name, section }: { name: string; section: string }) {
 
 function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false, compatibility, onOpen, onAdvance, onRemoveRepeat }: { climb: Climb; layoutName: string; currentUserId: string; selected?: boolean; compatibility?: string; onOpen: () => void; onAdvance: () => void; onRemoveRepeat: () => void }) {
   const [offset, setOffset] = useState(0);
-  const gesture = useRef<{ startX: number; moved: boolean } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const gesture = useRef<{ startX: number; delta: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
   const favorite = isFavorited(climb, currentUserId);
   const sent = hasSent(climb, currentUserId);
   const repeatCount = userRepeats(climb, currentUserId);
 
   const finishSwipe = () => {
-    const next = offset > 54 ? 104 : offset < -54 ? -104 : 0;
-    setOffset(next);
-    window.setTimeout(() => {
-      if (gesture.current) gesture.current.moved = false;
-    }, 0);
+    const completedGesture = gesture.current;
+    if (!completedGesture) return;
+    gesture.current = null;
+    suppressClick.current = completedGesture.moved;
+    setDragging(false);
+    setOffset(0);
+
+    if (completedGesture.delta <= -72) onAdvance();
+    if (completedGesture.delta >= 72 && repeatCount > 0) onRemoveRepeat();
+
+    window.setTimeout(() => { suppressClick.current = false; }, 0);
   };
 
   return (
     <div className="swipe-card">
-      <div className="swipe-actions" aria-hidden={offset === 0}>
-        <button className="swipe-action repeat-action" type="button" onClick={() => { onAdvance(); setOffset(0); }}>{sent ? 'Repeat +1' : 'Mark sent'}</button>
-        <button className="swipe-action remove-repeat-action" type="button" disabled={!repeatCount} onClick={() => { onRemoveRepeat(); setOffset(0); }}>Repeat −1</button>
+      <div className="swipe-actions" aria-hidden="true">
+        <span className={`swipe-action remove-repeat-action ${repeatCount ? '' : 'disabled-action'}`}>{repeatCount ? 'Repeat −1' : 'No repeats'}</span>
+        <span className="swipe-action repeat-action">{sent ? 'Repeat +1' : 'Mark sent'}</span>
       </div>
       <button
         type="button"
-        className={`card climb-list-button swipe-card-face ${selected ? 'selected-panel' : ''}`}
+        className={`card climb-list-button swipe-card-face ${dragging ? 'is-swiping' : ''} ${selected ? 'selected-panel' : ''}`}
         style={{ transform: `translateX(${offset}px)` }}
         onPointerDown={(event) => {
-          gesture.current = { startX: event.clientX, moved: false };
+          if (event.button !== 0) return;
+          gesture.current = { startX: event.clientX, delta: 0, moved: false };
+          setDragging(true);
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {
           if (!gesture.current) return;
           const delta = event.clientX - gesture.current.startX;
           if (Math.abs(delta) > 7) gesture.current.moved = true;
-          setOffset(clamp(delta, -122, 122));
+          gesture.current.delta = delta;
+          setOffset(clamp(delta, -132, 132));
         }}
         onPointerUp={finishSwipe}
         onPointerCancel={finishSwipe}
         onClick={() => {
-          if (gesture.current?.moved) return;
-          if (offset) {
-            setOffset(0);
-            return;
-          }
+          if (suppressClick.current) return;
           onOpen();
         }}
       >
@@ -974,7 +981,7 @@ function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false
           {sent && <span className="badge">sent</span>}
           {repeatCount > 0 && <span className="badge">your repeats {repeatCount}</span>}
           {compatibility && <span className="badge">{compatibility}</span>}
-          <span className="swipe-hint">Swipe ↔</span>
+          <span className="swipe-hint">← {sent ? 'repeat' : 'send'} · remove →</span>
         </div>
       </button>
     </div>
