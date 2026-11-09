@@ -1,8 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { ChangeEvent, PointerEvent, useMemo, useRef, useState } from 'react';
-import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
 import { averageRating, communityGrade, getCompatibility, getLatestVersion, groupClimbHolds, hasSent, isFavorited } from '@/lib/utils';
 import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating, DashboardData } from '@/lib/types';
 import { WallPreview } from './wall-preview';
@@ -132,7 +130,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
   const readError = async (res: Response) => {
     try {
-      const payload = await res.json();
+      const payload = await res.json() as { error?: unknown };
       return typeof payload.error === 'string' ? payload.error : 'Request failed';
     } catch {
       return 'Request failed';
@@ -239,8 +237,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       return;
     }
 
-    const payload = await res.json();
-    const nextVersion = payload.version as WallVersion;
+    const payload = await res.json() as { version: WallVersion };
+    const nextVersion = payload.version;
 
     setVersions((current) => [...current, nextVersion]);
     setSelectedVersionId(nextVersion.id);
@@ -305,7 +303,6 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: currentUserId,
         name: selectedVersion.name,
         changeType: selectedVersion.changeType,
         notes: selectedVersion.notes,
@@ -337,8 +334,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       return;
     }
 
-    const payload = await res.json();
-    const savedVersion = payload.version as WallVersion;
+    const payload = await res.json() as { version: WallVersion };
+    const savedVersion = payload.version;
     setVersions((current) => current.map((version) => (version.id === savedVersion.id ? savedVersion : version)));
     markLayoutClean(savedVersion.id);
     setLayoutHoldId((current) => savedVersion.holds.some((hold) => hold.id === current) ? current : null);
@@ -349,7 +346,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     if (!window.confirm('Delete this layout and all climbs under it?')) return;
     if (!window.confirm('Are you absolutely sure? This cannot be undone.')) return;
 
-    const res = await fetch(`/api/layouts/${selectedVersion.id}?userId=${currentUserId}`, { method: 'DELETE' });
+    const res = await fetch(`/api/layouts/${selectedVersion.id}`, { method: 'DELETE' });
     if (!res.ok) return;
 
     const remaining = versions.filter((version) => version.id !== selectedVersion.id);
@@ -400,7 +397,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     const holds = (['start', 'middle', 'finish'] as HoldRole[]).flatMap((role) => draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1 })));
     const previous = editingClimbId ? climbs.find((c) => c.id === editingClimbId) : null;
     const baseClimb: Climb = {
-      id: editingClimbId ?? `draft-${Date.now()}`,
+      id: editingClimbId ?? 'draft',
       wallVersionId: selectedVersion.id,
       createdByUserId: currentUserId,
       createdByName: data.currentUser.name,
@@ -437,8 +434,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       return;
     }
 
-    const payload = editingClimbId ? null : await res.json();
-    const savedClimb = editingClimbId ? baseClimb : { ...baseClimb, id: payload.id };
+    const payload = editingClimbId ? null : await res.json() as { id: string };
+    const savedClimb = editingClimbId ? baseClimb : { ...baseClimb, id: payload!.id };
 
     setClimbs((current) => editingClimbId ? current.map((climb) => (climb.id === editingClimbId ? savedClimb : climb)) : [savedClimb, ...current]);
     setDraft(emptyDraft());
@@ -611,7 +608,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h2 className="section-title">{editingClimbId ? 'Edit climb' : 'New climb'}</h2>
-                <p className="section-subtitle">Pick a role, tap holds on the wall, and save the climb into local prototype state.</p>
+                <p className="section-subtitle">Pick a role, tap holds on the wall, and save the climb for everyone using this site.</p>
               </div>
               <div className="compact-field">
                 <label className="label">Layout for this climb</label>
@@ -817,17 +814,6 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 }
 
 function SessionHeader({ name, email, role }: { name: string; email: string; role: DashboardData['currentUser']['role'] }) {
-  const router = useRouter();
-  const [pending, setPending] = useState(false);
-
-  const signOut = async () => {
-    setPending(true);
-    const supabase = createBrowserSupabaseClient();
-    await supabase.auth.signOut();
-    router.refresh();
-    setPending(false);
-  };
-
   return (
     <div className="card session-card">
       <div>
@@ -836,9 +822,7 @@ function SessionHeader({ name, email, role }: { name: string; email: string; rol
       </div>
       <div className="row">
         <span className="badge">{role}</span>
-        <button className="button secondary" type="button" disabled={pending} onClick={signOut}>
-          {pending ? 'Signing out…' : 'Sign out'}
-        </button>
+        <a className="button secondary" href="/signout-with-chatgpt?return_to=%2F" target="_top">Sign out</a>
       </div>
     </div>
   );

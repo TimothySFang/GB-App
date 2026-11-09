@@ -1,6 +1,38 @@
-node_modules
-.next
-.env
-.env.local
-.DS_Store
+# Dependencies
+/node_modules/
+/.pnp
+.pnp.*
+
+# Generated builds and framework state
+/dist/
+/.next/
+/.vinext/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Local environment and keys
+.env*
+.dev.vars*
+*.pem
+
+# Checkout-local tool state
+/.wrangler/
+/.sites-runtime/
+
+# Workspace scaffolding and publication archives
+/.agents/
+/.codex/
+/outputs/
+/work/
+
+# Test output and logs
+/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Legacy local database and OS metadata
 prisma/dev.db
+.DS_Store

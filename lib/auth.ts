@@ -1,51 +1,59 @@
-import { prisma } from '@/lib/prisma';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { User } from '@prisma/client';
+import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { first, run } from "@/db";
+import type { Role } from "@/lib/types";
+
+export type AppUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Role;
+};
 
 export type AuthState =
-  | { status: 'signed_out' }
-  | { status: 'authenticated'; user: User };
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function getDisplayName(email: string, metadata: Record<string, unknown> | undefined) {
-  const fullName = typeof metadata?.full_name === 'string' ? metadata.full_name : null;
-  const name = typeof metadata?.name === 'string' ? metadata.name : null;
-  return fullName || name || email.split('@')[0];
-}
+  | { status: "signed_out" }
+  | { status: "authenticated"; user: AppUser };
 
 export async function getAuthState(): Promise<AuthState> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.auth.getUser();
-  const authUser = data.user;
+  const identity = await getChatGPTUser();
+  if (!identity) return { status: "signed_out" };
 
-  if (error || !authUser?.email) {
-    return { status: 'signed_out' };
+  const existing = await first<AppUser>(
+    "SELECT id, email, display_name AS displayName, role FROM users WHERE id = ?",
+    identity.userId,
+  );
+
+  if (!existing) {
+    const count = await first<{ count: number }>("SELECT COUNT(*) AS count FROM users");
+    const role: Role = Number(count?.count ?? 0) === 0 ? "admin" : "member";
+    await run(
+      "INSERT INTO users (id, email, display_name, role) VALUES (?, ?, ?, ?)",
+      identity.userId,
+      identity.email.trim().toLowerCase(),
+      identity.displayName,
+      role,
+    );
+  } else if (existing.email !== identity.email || existing.displayName !== identity.displayName) {
+    await run(
+      "UPDATE users SET email = ?, display_name = ? WHERE id = ?",
+      identity.email.trim().toLowerCase(),
+      identity.displayName,
+      identity.userId,
+    );
   }
 
-  const email = normalizeEmail(authUser.email);
-
-  const user = await prisma.user.upsert({
-    where: { email },
-    update: {
-      displayName: getDisplayName(email, authUser.user_metadata)
-    },
-    create: {
-      email,
-      displayName: getDisplayName(email, authUser.user_metadata)
-    }
-  });
-
-  return { status: 'authenticated', user };
+  const user = await first<AppUser>(
+    "SELECT id, email, display_name AS displayName, role FROM users WHERE id = ?",
+    identity.userId,
+  );
+  if (!user) throw new Error("Could not create the signed-in user");
+  return { status: "authenticated", user };
 }
 
-export async function requireAuthenticatedUser() {
+export async function requireAuthenticatedUser(): Promise<AppUser | null> {
   const authState = await getAuthState();
-  return authState.status === 'authenticated' ? authState.user : null;
+  return authState.status === "authenticated" ? authState.user : null;
 }
 
-export function isAdmin(user: Pick<User, 'role'>) {
-  return user.role === 'admin';
+export function isAdmin(user: Pick<AppUser, "role">) {
+  return user.role === "admin";
 }

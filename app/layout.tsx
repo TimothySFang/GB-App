@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 
 export const metadata = {
   title: 'GB App',
-  description: 'Home climbing wall route manager MVP1'
+  description: 'Private home climbing wall route manager'
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

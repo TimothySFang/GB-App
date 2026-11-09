@@ -1,41 +1,46 @@
-# GB App — MVP1
+# GB App
 
-Private mobile-first home climbing wall app.
+Private, mobile-first home climbing wall app hosted on ChatGPT Sites.
 
-## MVP1 includes
-- Wall versions with additive / modified / reset states
-- Manual hold annotation model
-- Climb creation with start / middle / finish holds
-- Climb ownership rules (only creator can edit/delete)
-- Compatibility between old climbs and newer wall versions
-- Community ratings and grade votes
-- PostgreSQL + Prisma schema
+## Features
+
+- ChatGPT account sign-in
+- Wall layouts with additive, modified, and reset history
+- Wall photos stored in Sites object storage
+- Manual hold annotation and climb creation
+- Climb ownership, favorites, sends, ratings, and grade votes
+- Shared persistent data in a Sites D1 database
 
 ## Stack
-- Next.js 14
-- React 18
-- PostgreSQL
-- Prisma
 
-## Getting started
+- Next.js 16 and React 19
+- Vinext and Cloudflare Workers
+- Drizzle ORM and Sites D1
+- Sites R2-compatible object storage
+- ChatGPT Sites identity
+
+## Local development
+
+Node.js 22.13 or newer is required.
+
 ```bash
-npm install
-cp .env.example .env
+node /Users/timothyfang/.codex/plugins/cache/openai-curated-remote/sites/1.1.4/scripts/install-dependencies.mjs
+npm run db:generate
 npm run dev
 ```
 
-## Google OAuth setup
-1. Create a Supabase project and enable Google under Auth > Providers.
-2. In Google Cloud, add the Supabase callback URL shown by the provider setup screen.
-3. In Supabase Auth URL settings, add your local and deployed app URLs as redirect URLs.
-4. Fill in `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `AUTH_ALLOWLIST_EMAILS` in `.env`.
-5. Keep at least one admin email in the allowlist if you want to edit wall layouts.
+Open the printed local URL and select **Continue with ChatGPT**. Local development uses the Sites test identity `seedy@sites.test`; no OAuth or Supabase setup is required.
 
-The app exchanges the Google OAuth code at `/auth/callback`, syncs the signed-in user into Prisma by email, and only grants app access to emails on `AUTH_ALLOWLIST_EMAILS`.
+For a production-runtime preview, build the app, apply the generated migration, and start Wrangler:
 
-## Next implementation steps
-1. Wire auth and sessions
-2. Persist wall versions / holds / climbs with Prisma
-3. Build hold editor on top of uploaded wall image
-4. Add create/edit climb flows
-5. Add compatibility recompute logic on version changes
+```bash
+npm run build
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_equal_black_widow.sql
+npm start
+```
+
+## Data and access
+
+The first person to sign in becomes the administrator. Later users are members. Administrators can edit wall layouts; climb creators can edit their own climbs. The deployed Site is private by default.
+
+The previous Supabase/PostgreSQL implementation is preserved on the `codex/legacy-supabase` branch.
