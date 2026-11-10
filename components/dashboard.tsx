@@ -467,7 +467,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const saveDraftClimb = async () => {
     if (!selectedVersion) return setFormError('Create a layout before saving climbs.');
     if (layoutHasUnsavedChanges) return setFormError('Save layout changes before saving a climb on this layout.');
-    if (!draft.name.trim()) return setFormError('Climb name is required.');
+    if (editingClimbId && !draft.name.trim()) return setFormError('Climb name is required.');
     if (!draft.selected.start.length || !draft.selected.finish.length) return setFormError('At least one start hold and one finish hold are required.');
     setFormError('');
     setRequestError('');
@@ -515,8 +515,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       return;
     }
 
-    const payload = editingClimbId ? null : await res.json() as { id: string };
-    const savedClimb = editingClimbId ? baseClimb : { ...baseClimb, id: payload!.id };
+    const payload = editingClimbId ? null : await res.json() as { id: string; name: string };
+    const savedClimb = editingClimbId ? baseClimb : { ...baseClimb, id: payload!.id, name: payload!.name };
 
     setClimbs((current) => editingClimbId ? current.map((climb) => (climb.id === editingClimbId ? savedClimb : climb)) : [savedClimb, ...current]);
     setDraft(emptyDraft());
@@ -705,8 +705,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             ) : (
               <>
             <div>
-              <label className="label">Climb name</label>
-              <input className="input" placeholder="ex. Compression Goblin" value={draft.name} onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))} />
+              <label className="label">Climb name {!editingClimbId && <span className="optional-label">Optional</span>}</label>
+              <input className="input" placeholder={editingClimbId ? 'ex. Compression Goblin' : 'Leave blank for initials-uniqueid'} value={draft.name} onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))} />
             </div>
             <div className="grid grid-2 mobile-grid-1">
               <div>

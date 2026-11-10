@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getD1, all } from "@/db";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import type { HoldRole } from "@/lib/types";
+import { defaultClimbName } from "@/lib/climb-name";
 
 export async function POST(req: NextRequest) {
   const user = await requireAuthenticatedUser();
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     notes?: string;
     holds?: Array<{ holdId: string; role: HoldRole; order: number }>;
   };
-  if (!wallVersionId || !name || !Array.isArray(holds) || !holds.length) {
+  if (!wallVersionId || (name != null && typeof name !== 'string') || !Array.isArray(holds) || !holds.length) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
@@ -31,14 +32,15 @@ export async function POST(req: NextRequest) {
   }
 
   const id = crypto.randomUUID();
+  const climbName = name?.trim() || defaultClimbName(user.displayName, id);
   const db = getD1();
   await db.batch([
     db.prepare(`INSERT INTO climbs (id, wall_version_id, created_by_user_id, name, setter_grade, notes)
       VALUES (?, ?, ?, ?, ?, ?)`)
-      .bind(id, wallVersionId, user.id, name.trim(), setterGrade?.trim() || null, notes ?? ""),
+      .bind(id, wallVersionId, user.id, climbName, setterGrade?.trim() || null, notes ?? ""),
     ...resolved.map((item) =>
       db.prepare("INSERT INTO climb_holds (id, climb_id, hold_id, role, order_index) VALUES (?, ?, ?, ?, ?)")
         .bind(crypto.randomUUID(), id, item.hold!.id, item.ref.role, item.ref.order)),
   ]);
-  return NextResponse.json({ id });
+  return NextResponse.json({ id, name: climbName });
 }
