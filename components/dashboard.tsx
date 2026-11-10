@@ -715,7 +715,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               </div>
               <div>
                 <label className="label">Current picker mode</label>
-                <div className="row">{(['start', 'middle', 'foot', 'finish'] as HoldRole[]).map((role) => <button key={role} className={`button ${selectedRole === role ? '' : 'secondary'}`} type="button" onClick={() => setSelectedRole(role)}>{role}</button>)}</div>
+                <div className="button-row hold-role-buttons">{(['start', 'middle', 'foot', 'finish'] as HoldRole[]).map((role) => <button key={role} className={`button ${selectedRole === role ? '' : 'secondary'}`} type="button" onClick={() => setSelectedRole(role)}>{role}</button>)}</div>
               </div>
             </div>
             <div>
@@ -752,9 +752,9 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                 <h2 className="section-title">Board layouts</h2>
                 <p className="section-subtitle">Choose whether you want to edit a saved layout or create a new one from an existing layout.</p>
               </div>
-              <div className="row">
-                <button className={`button ${layoutMode === 'edit' ? '' : 'secondary'}`} type="button" onClick={() => setLayoutMode('edit')}>Edit existing layout</button>
-                <button className={`button ${layoutMode === 'create' ? '' : 'secondary'}`} type="button" onClick={() => setLayoutMode('create')}>Create new layout</button>
+              <div className="button-row layout-mode-buttons">
+                <button className={`button ${layoutMode === 'edit' ? '' : 'secondary'}`} type="button" onClick={() => setLayoutMode('edit')}>Edit layout</button>
+                <button className={`button ${layoutMode === 'create' ? '' : 'secondary'}`} type="button" onClick={() => setLayoutMode('create')}>Create layout</button>
               </div>
             </div>
 
@@ -789,9 +789,11 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                       <label className="label">Layout to edit</label>
                       <VersionSelect versions={versions} value={selectedVersionId} onChange={(value) => { setSelectedVersionId(value); setLayoutHoldId(null); }} />
                     </div>
+                    <div className="button-row layout-action-buttons">
                     <label className="button secondary file-button">Upload image<input type="file" accept="image/*" onChange={onBoardImageUpload} /></label>
-                    <button className="button secondary" type="button" onClick={saveSelectedLayout} disabled={!selectedVersion || !layoutHasUnsavedChanges || savingLayout}>{savingLayout ? 'Saving…' : 'Save changes'}</button>
-                    <button className="button danger" type="button" onClick={deleteSelectedLayout} disabled={!selectedVersion}>Delete layout</button>
+                    <button className="button secondary" type="button" onClick={saveSelectedLayout} aria-label="Save layout changes" disabled={!selectedVersion || !layoutHasUnsavedChanges || savingLayout}>{savingLayout ? 'Saving…' : 'Save'}</button>
+                    <button className="button danger" type="button" onClick={deleteSelectedLayout} aria-label="Delete layout" disabled={!selectedVersion}>Delete</button>
+                    </div>
                   </div>
                 </div>
                 {!selectedVersion ? (
