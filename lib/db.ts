@@ -50,7 +50,7 @@ async function ensureInitialWall() {
 export async function getDashboardData(currentUserId: string): Promise<DashboardData> {
   await ensureInitialWall();
 
-  const [users, wall, versions, holds, climbs, climbHolds, ratings, gradeVotes, favorites, sends, repeats, compatibility] = await Promise.all([
+  const [users, wall, versions, holds, climbs, climbHolds, ratings, gradeVotes, favorites, sends, repeats, compatibility, playlists, playlistClimbs] = await Promise.all([
     all<UserRow>("SELECT id, email, display_name AS displayName, role FROM users ORDER BY created_at"),
     first<WallRow>("SELECT id, name, notes FROM walls ORDER BY created_at LIMIT 1"),
     all<VersionRow>(`SELECT id, wall_id AS wallId, parent_version_id AS parentVersionId,
@@ -76,6 +76,10 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
     all<{ id: string; climbId: string; userId: string; repeatedAt: string }>("SELECT id, climb_id AS climbId, user_id AS userId, repeated_at AS repeatedAt FROM climb_repeats ORDER BY repeated_at DESC"),
     all<{ climbId: string; targetWallVersionId: string; status: CompatibilityStatus; reason: string | null }>(`SELECT climb_id AS climbId,
       target_wall_version_id AS targetWallVersionId, status, reason FROM climb_compatibility ORDER BY climb_id`),
+    all<{ id: string; name: string; createdAt: string }>("SELECT id, name, created_at AS createdAt FROM playlists WHERE user_id = ? ORDER BY created_at DESC", currentUserId),
+    all<{ playlistId: string; climbId: string }>(`SELECT pc.playlist_id AS playlistId, pc.climb_id AS climbId
+      FROM playlist_climbs pc JOIN playlists p ON p.id = pc.playlist_id
+      WHERE p.user_id = ? ORDER BY pc.added_at DESC`, currentUserId),
   ]);
 
   if (!wall) throw new Error("No wall found");
@@ -128,6 +132,10 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
       favorites: favorites.filter((item) => item.climbId === climb.id).map((item) => item.userId),
       sends: sends.filter((item) => item.climbId === climb.id).map(({ userId, grade, sentAt }) => ({ userId, grade, sentAt: sentAt.slice(0, 10) })),
       repeats: repeats.filter((item) => item.climbId === climb.id).map(({ id, userId, repeatedAt }) => ({ id, userId, repeatedAt })),
+    })),
+    playlists: playlists.map((playlist) => ({
+      ...playlist,
+      climbIds: playlistClimbs.filter((item) => item.playlistId === playlist.id).map((item) => item.climbId),
     })),
     compatibility: compatibility.map((item) => ({ ...item, reason: item.reason ?? "" })),
   };

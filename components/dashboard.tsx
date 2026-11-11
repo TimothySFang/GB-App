@@ -2,7 +2,7 @@
 
 import { ChangeEvent, PointerEvent, TouchEvent, useMemo, useRef, useState } from 'react';
 import { averageRating, communityGrade, getCompatibility, getLatestVersion, hasSent, isFavorited, totalRepeats, userRepeats } from '@/lib/utils';
-import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating, DashboardData, Repeat } from '@/lib/types';
+import { Hold, HoldRole, Climb, WallVersion, ChangeType, Rating, DashboardData, Repeat, Playlist } from '@/lib/types';
 import { WallPreview } from './wall-preview';
 
 type TabId = 'home' | 'climbs' | 'new' | 'versions' | 'profile';
@@ -54,6 +54,9 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const [climbFilter, setClimbFilter] = useState<ClimbFilter>('all');
   const [gradeFilter, setGradeFilter] = useState('all');
   const [climbSort, setClimbSort] = useState<ClimbSort>('newest');
+  const [playlists, setPlaylists] = useState<Playlist[]>(data.playlists);
+  const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
   const [detailClimbId, setDetailClimbId] = useState<string | null>(null);
   const [detailQueueIds, setDetailQueueIds] = useState<string[]>([]);
   const [ratingDraft, setRatingDraft] = useState<number>(5);
@@ -83,22 +86,24 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const detailClimb = climbs.find((climb) => climb.id === detailClimbId) ?? null;
   const currentUserId = data.currentUser.id;
   const isAdminUser = data.currentUser.role === 'admin';
+  const activePlaylist = playlists.find((playlist) => playlist.id === activePlaylistId) ?? null;
 
   const filteredClimbs = useMemo(() => {
     const filtered = climbs.filter((climb) => {
-      const matchesLayout = !selectedVersionId || climb.wallVersionId === selectedVersionId;
+      const matchesLayout = activePlaylist ? true : (!selectedVersionId || climb.wallVersionId === selectedVersionId);
+      const matchesPlaylist = !activePlaylist || activePlaylist.climbIds.includes(climb.id);
       const matchesSearch = climb.name.toLowerCase().includes(climbSearch.toLowerCase()) || climb.createdByName.toLowerCase().includes(climbSearch.toLowerCase());
       const matchesGrade = gradeFilter === 'all' || climb.setterGrade === gradeFilter || communityGrade(climb) === gradeFilter;
       const matchesFavorite = climbFilter !== 'favorites' || isFavorited(climb, currentUserId);
       const matchesSent = climbFilter !== 'sent' || hasSent(climb, currentUserId);
-      return matchesLayout && matchesSearch && matchesGrade && matchesFavorite && matchesSent;
+      return matchesLayout && matchesPlaylist && matchesSearch && matchesGrade && matchesFavorite && matchesSent;
     });
     return filtered.sort((a, b) => {
       if (climbSort === 'repeats') return totalRepeats(b) - totalRepeats(a);
       if (climbSort === 'rating') return Number(averageRating(b) ?? 0) - Number(averageRating(a) ?? 0);
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [climbs, climbSearch, gradeFilter, climbFilter, climbSort, currentUserId, selectedVersionId]);
+  }, [climbs, climbSearch, gradeFilter, climbFilter, climbSort, currentUserId, selectedVersionId, activePlaylist]);
 
   const profileCreated = climbs.filter((climb) => climb.createdByUserId === currentUserId);
   const profileFavorites = climbs.filter((climb) => isFavorited(climb, currentUserId));
@@ -176,6 +181,54 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     setActivityNotice(message);
     if (activityNoticeTimer.current) window.clearTimeout(activityNoticeTimer.current);
     activityNoticeTimer.current = window.setTimeout(() => setActivityNotice(''), 2600);
+  };
+
+  const createPlaylist = async () => {
+    const name = newPlaylistName.trim();
+    if (!name) return;
+    setRequestError('');
+    const res = await fetch('/api/playlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    }).catch(() => null);
+    if (!res) return setRequestError('Could not create the playlist.');
+    if (!res.ok) return setRequestError(await readError(res));
+    const playlist = await res.json() as Playlist;
+    setPlaylists((current) => [playlist, ...current]);
+    setActivePlaylistId(playlist.id);
+    setNewPlaylistName('');
+    showActivityNotice(`Created ${playlist.name}.`);
+  };
+
+  const deletePlaylist = async (playlist: Playlist) => {
+    if (!window.confirm(`Delete playlist "${playlist.name}"? The climbs will not be deleted.`)) return;
+    setRequestError('');
+    const res = await fetch(`/api/playlists/${playlist.id}`, { method: 'DELETE' }).catch(() => null);
+    if (!res) return setRequestError('Could not delete the playlist.');
+    if (!res.ok) return setRequestError(await readError(res));
+    setPlaylists((current) => current.filter((item) => item.id !== playlist.id));
+    if (activePlaylistId === playlist.id) setActivePlaylistId(null);
+    showActivityNotice(`Deleted ${playlist.name}.`);
+  };
+
+  const toggleClimbInPlaylist = async (playlistId: string, climbId: string) => {
+    const playlist = playlists.find((item) => item.id === playlistId);
+    if (!playlist) return;
+    const isSaved = playlist.climbIds.includes(climbId);
+    setRequestError('');
+    const res = await fetch(`/api/playlists/${playlistId}/climbs`, {
+      method: isSaved ? 'DELETE' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ climbId })
+    }).catch(() => null);
+    if (!res) return setRequestError('Could not update the playlist.');
+    if (!res.ok) return setRequestError(await readError(res));
+    setPlaylists((current) => current.map((item) => item.id === playlistId ? {
+      ...item,
+      climbIds: isSaved ? item.climbIds.filter((id) => id !== climbId) : [...item.climbIds, climbId]
+    } : item));
+    showActivityNotice(isSaved ? `Removed from ${playlist.name}.` : `Saved to ${playlist.name}.`);
   };
 
   const toggleFavorite = async (climbId: string) => {
@@ -615,6 +668,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
           onRate={(stars) => saveRating(detailClimb.id, stars)}
           onSend={(grade) => markSent(detailClimb.id, grade)}
           onRepeat={() => addRepeat(detailClimb.id)}
+          playlists={playlists}
+          onTogglePlaylist={(playlistId) => toggleClimbInPlaylist(playlistId, detailClimb.id)}
           onEdit={() => startEditing(detailClimb)}
           onDelete={() => deleteClimb(detailClimb)}
           ratingDraft={ratingDraft}
@@ -681,11 +736,36 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
 
       {activeTab === 'climbs' && (
         <div className="col">
+          <div className="card col playlist-panel">
+            <div className="playlist-header">
+              <div>
+                <h2 className="section-title">Playlists</h2>
+                <p className="section-subtitle">Build personal climb lists for sessions, projects, or circuits.</p>
+              </div>
+              <span className="profile-count">{playlists.length}</span>
+            </div>
+            <div className="playlist-create-row">
+              <input className="input" maxLength={40} placeholder="New playlist name" value={newPlaylistName} onChange={(event) => setNewPlaylistName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') createPlaylist(); }} />
+              <button className="button" type="button" onClick={createPlaylist} disabled={!newPlaylistName.trim()}>Create</button>
+            </div>
+            <div className="playlist-tabs" role="list" aria-label="Climb playlists">
+              <button type="button" className={`playlist-tab ${activePlaylistId === null ? 'active' : ''}`} onClick={() => setActivePlaylistId(null)}>All climbs</button>
+              {playlists.map((playlist) => (
+                <button key={playlist.id} type="button" className={`playlist-tab ${activePlaylistId === playlist.id ? 'active' : ''}`} onClick={() => setActivePlaylistId(playlist.id)}>{playlist.name}<span>{playlist.climbIds.length}</span></button>
+              ))}
+            </div>
+            {activePlaylist && (
+              <div className="playlist-active-row">
+                <span className="small">Showing {activePlaylist.climbIds.length} saved climb{activePlaylist.climbIds.length === 1 ? '' : 's'} across all layouts.</span>
+                <button className="button danger playlist-delete" type="button" onClick={() => deletePlaylist(activePlaylist)}>Delete playlist</button>
+              </div>
+            )}
+          </div>
           <div className="card filter-card">
             <h2 className="section-title">Find climbs</h2>
             <div className="filter-grid">
               <div className="filter-search"><label className="label" htmlFor="climb-search">Search</label><input id="climb-search" className="input" placeholder="Name or setter" value={climbSearch} onChange={(e) => setClimbSearch(e.target.value)} /></div>
-              <div><label className="label">Layout</label><VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} /></div>
+              <div><label className="label">Layout</label>{activePlaylist ? <div className="input playlist-layout-label">All layouts</div> : <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />}</div>
               <div><label className="label" htmlFor="grade-filter">Grade</label><select id="grade-filter" className="select" value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
                 <option value="all">All grades</option>
                 {['VB','V0','V1','V2','V3','V4','V5','V6'].map((grade) => <option key={grade} value={grade}>{grade}</option>)}
@@ -703,7 +783,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             </div>
           </div>
           <div className="list">
-            {!filteredClimbs.length ? <div className="card small">{hasLayouts ? 'No climbs match this layout/filter yet.' : 'No layouts yet, so there are no climbs to show.'}</div> : null}
+            {!filteredClimbs.length ? <div className="card small">{activePlaylist ? 'This playlist has no climbs matching the current filters.' : hasLayouts ? 'No climbs match this layout/filter yet.' : 'No layouts yet, so there are no climbs to show.'}</div> : null}
             {filteredClimbs.map((climb) => {
               const baseVersion = versions.find((v) => v.id === climb.wallVersionId) ?? latest;
               const compatibility = latest && climb.wallVersionId !== latest.id ? getCompatibility(climb.id, latest.id, data.compatibility) : null;
@@ -1096,7 +1176,7 @@ function RepeatHistory({ repeats, onOpen }: { repeats: Array<Repeat & { climb: C
   );
 }
 
-function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onRepeat, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft, position, onPrevious, onNext }: { climb: Climb; currentUserId: string; isAdminUser: boolean; versions: WallVersion[]; latestVersion: WallVersion | null; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onRepeat: () => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; position: { index: number; total: number } | null; onPrevious: (() => void) | null; onNext: (() => void) | null; }) {
+function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, latestVersion, compatibility, onFavorite, onRate, onSend, onRepeat, playlists, onTogglePlaylist, onEdit, onDelete, ratingDraft, setRatingDraft, sendGradeDraft, setSendGradeDraft, position, onPrevious, onNext }: { climb: Climb; currentUserId: string; isAdminUser: boolean; versions: WallVersion[]; latestVersion: WallVersion | null; compatibility: DashboardData['compatibility']; onFavorite: () => void; onRate: (stars: number) => void; onSend: (grade: string) => void; onRepeat: () => void; playlists: Playlist[]; onTogglePlaylist: (playlistId: string) => void; onEdit: () => void; onDelete: () => void; ratingDraft: number; setRatingDraft: (n: number) => void; sendGradeDraft: string; setSendGradeDraft: (v: string) => void; position: { index: number; total: number } | null; onPrevious: (() => void) | null; onNext: (() => void) | null; }) {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const handleTouchStart = (event: TouchEvent) => {
     const target = event.target as HTMLElement;
@@ -1183,6 +1263,20 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
               <button className={`button ${favorite ? 'secondary' : ''}`} onClick={onFavorite}>{favorite ? 'Unfavorite' : 'Favorite'}</button>
               <button className="button" onClick={onRepeat}>Repeat +1</button>
             </div>
+          </div>
+          <div className="card col playlist-save-card">
+            <div>
+              <strong>Save to playlist</strong>
+              <p className="small">Tap a playlist to add or remove this climb.</p>
+            </div>
+            {playlists.length ? (
+              <div className="playlist-save-list">
+                {playlists.map((playlist) => {
+                  const saved = playlist.climbIds.includes(climb.id);
+                  return <button key={playlist.id} type="button" className={`playlist-save-button ${saved ? 'saved' : ''}`} aria-pressed={saved} onClick={() => onTogglePlaylist(playlist.id)}><span>{playlist.name}</span><strong>{saved ? 'Saved ✓' : 'Save +'}</strong></button>;
+                })}
+              </div>
+            ) : <span className="small">Create your first playlist from the Climbs tab.</span>}
           </div>
           <div className="row" style={{ justifyContent: 'center' }}>
             <button className={`button ${isOwner ? '' : 'secondary disabled-button'}`} onClick={onEdit} disabled={!isOwner}>Edit climb</button>

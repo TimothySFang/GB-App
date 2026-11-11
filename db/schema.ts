@@ -117,3 +117,22 @@ export const climbRepeats = sqliteTable("climb_repeats", {
   index("climb_repeats_climb_idx").on(table.climbId),
   index("climb_repeats_user_idx").on(table.userId),
 ]);
+
+export const playlists = sqliteTable("playlists", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("playlists_user_idx").on(table.userId),
+  uniqueIndex("playlists_user_name_unique").on(table.userId, table.name),
+]);
+
+export const playlistClimbs = sqliteTable("playlist_climbs", {
+  playlistId: text("playlist_id").notNull().references(() => playlists.id, { onDelete: "cascade" }),
+  climbId: text("climb_id").notNull().references(() => climbs.id, { onDelete: "cascade" }),
+  addedAt: text("added_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  primaryKey({ columns: [table.playlistId, table.climbId] }),
+  index("playlist_climbs_climb_idx").on(table.climbId),
+]);

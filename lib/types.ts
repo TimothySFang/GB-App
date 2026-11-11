@@ -69,6 +69,13 @@ export type Climb = {
   repeats?: Repeat[];
 };
 
+export type Playlist = {
+  id: string;
+  name: string;
+  createdAt: string;
+  climbIds: string[];
+};
+
 export type Compatibility = {
   climbId: string;
   targetWallVersionId: string;
@@ -103,5 +110,6 @@ export type DashboardData = {
   users: User[];
   wall: Wall;
   climbs: Climb[];
+  playlists: Playlist[];
   compatibility: Compatibility[];
 };

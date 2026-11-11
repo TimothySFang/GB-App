@@ -400,3 +400,24 @@ hr.sep { margin: 8px 0; border: 0; border-top: 1px solid var(--line); }
 .account-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; }
 .account-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .account-info .small { overflow-wrap: anywhere; }
+
+.playlist-panel { gap: 12px; }
+.playlist-header, .playlist-active-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.playlist-create-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.playlist-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 5px; scrollbar-width: thin; }
+.playlist-tab { flex: none; display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border: 2px solid var(--ink); border-radius: 999px; color: var(--ink); background: var(--paper); font: inherit; font-size: 13px; font-weight: 850; cursor: pointer; }
+.playlist-tab span { display: grid; place-items: center; min-width: 21px; height: 21px; padding: 0 6px; border-radius: 999px; color: var(--cream); background: var(--ink); font-size: 10px; }
+.playlist-tab.active { color: var(--ink); background: var(--lime); box-shadow: 0 4px 0 rgba(17,20,17,.18); }
+.playlist-delete { min-height: 34px; padding: 7px 11px; font-size: 12px; }
+.playlist-layout-label { display: flex; align-items: center; color: var(--muted); background: rgba(255,255,255,.45); }
+.playlist-save-card { gap: 10px; }
+.playlist-save-card p { margin: 3px 0 0; }
+.playlist-save-list { display: flex; flex-direction: column; gap: 7px; }
+.playlist-save-button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 12px; border: 2px solid var(--ink); border-radius: 14px; color: var(--ink); background: var(--paper); font: inherit; text-align: left; cursor: pointer; }
+.playlist-save-button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+.playlist-save-button strong { flex: none; font-size: 11px; text-transform: uppercase; }
+.playlist-save-button.saved { background: var(--lime); }
+@media (max-width: 520px) {
+  .playlist-active-row { align-items: flex-start; flex-direction: column; }
+  .playlist-delete { width: 100%; }
+}
