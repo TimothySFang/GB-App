@@ -9,10 +9,11 @@ export async function POST(req: NextRequest) {
   const user = await requireAuthenticatedUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { wallVersionId, name, setterGrade, notes, holds } = await req.json() as {
+  const { wallVersionId, name, setterGrade, usesFootboard, notes, holds } = await req.json() as {
     wallVersionId?: string;
     name?: string;
     setterGrade?: string;
+    usesFootboard?: boolean;
     notes?: string;
     holds?: ClimbHold[];
   };
@@ -31,9 +32,9 @@ export async function POST(req: NextRequest) {
   try { holdStatements = await climbHoldStatements(db, id, wallVersionId, holds); }
   catch { return NextResponse.json({ error: 'Selected holds could not be resolved' }, { status: 400 }); }
   await db.batch([
-    db.prepare(`INSERT INTO climbs (id, wall_version_id, created_by_user_id, name, setter_grade, notes)
-      VALUES (?, ?, ?, ?, ?, ?)`)
-      .bind(id, wallVersionId, user.id, climbName, setterGrade?.trim() || null, notes ?? ""),
+    db.prepare(`INSERT INTO climbs (id, wall_version_id, created_by_user_id, name, setter_grade, uses_footboard, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, wallVersionId, user.id, climbName, setterGrade?.trim() || null, usesFootboard === false ? 0 : 1, notes ?? ""),
     ...holdStatements,
   ]);
   return NextResponse.json({ id, name: climbName });

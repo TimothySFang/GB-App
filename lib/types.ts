@@ -59,6 +59,7 @@ export type Climb = {
   createdAt: string;
   name: string;
   setterGrade: string;
+  usesFootboard: boolean;
   notes: string;
   holds: ClimbHold[];
   ratings: Rating[];

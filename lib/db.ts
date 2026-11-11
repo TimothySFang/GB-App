@@ -59,9 +59,10 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
       photo_rotation AS photoRotation, notes FROM wall_versions ORDER BY created_at`),
     all<HoldRow>(`SELECT id, canonical_hold_id AS canonicalHoldId, wall_version_id AS wallVersionId,
       label, color, x, y, status FROM holds ORDER BY created_at`),
-    all<{ id: string; wallVersionId: string; createdByUserId: string; createdByName: string; createdAt: string; name: string; setterGrade: string | null; notes: string | null }>(`SELECT c.id, c.wall_version_id AS wallVersionId,
+    all<{ id: string; wallVersionId: string; createdByUserId: string; createdByName: string; createdAt: string; name: string; setterGrade: string | null; usesFootboard: number; notes: string | null }>(`SELECT c.id, c.wall_version_id AS wallVersionId,
       c.created_by_user_id AS createdByUserId, u.display_name AS createdByName,
-      c.created_at AS createdAt, c.name, c.setter_grade AS setterGrade, c.notes
+      c.created_at AS createdAt, c.name, c.setter_grade AS setterGrade,
+      c.uses_footboard AS usesFootboard, c.notes
       FROM climbs c JOIN users u ON u.id = c.created_by_user_id ORDER BY c.created_at`),
     all<{ climbId: string; canonicalHoldId: string; role: HoldRole; orderIndex: number; x: number | null; y: number | null }>(`SELECT ch.climb_id AS climbId,
       h.canonical_hold_id AS canonicalHoldId, ch.role, ch.order_index AS orderIndex, NULL AS x, NULL AS y
@@ -119,6 +120,7 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
       createdAt: climb.createdAt,
       name: climb.name,
       setterGrade: climb.setterGrade ?? "",
+      usesFootboard: Boolean(climb.usesFootboard),
       notes: climb.notes ?? "",
       holds: climbHolds.filter((item) => item.climbId === climb.id).map((item) => ({ holdId: item.canonicalHoldId, role: item.role, order: item.orderIndex, ...(item.x != null && item.y != null ? { x: item.x, y: item.y } : {}) })),
       ratings: ratings.filter((item) => item.climbId === climb.id).map(({ userId, stars }) => ({ userId, stars })),

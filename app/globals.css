@@ -135,6 +135,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 11px;
   font-weight: 850;
 }
+.badge.no-footboard-tag { color: var(--ink); background: var(--paper); }
 .button {
   min-height: 43px;
   padding: 10px 17px;
@@ -394,6 +395,7 @@ hr.sep { margin: 8px 0; border: 0; border-top: 1px solid var(--line); }
 .profile-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 12px; border: 1.5px solid var(--ink); border-radius: 12px; font: inherit; text-align: left; cursor: pointer; color: var(--cream); background: var(--ink); }
 .profile-row strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--lime); }
 .profile-row span { flex: none; font-size: 12px; color: rgba(242,255,225,.7); }
+.profile-row .profile-row-tag { padding: 3px 6px; border-radius: 999px; color: var(--ink); background: var(--lime); font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
 @media (max-width: 720px) { .profile-grid { grid-template-columns: 1fr; } .profile-scroll { max-height: 180px; } }
 .account-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; }
 .account-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }

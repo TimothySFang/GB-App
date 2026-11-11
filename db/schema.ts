@@ -51,6 +51,7 @@ export const climbs = sqliteTable("climbs", {
   createdByUserId: text("created_by_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   setterGrade: text("setter_grade"),
+  usesFootboard: integer("uses_footboard", { mode: "boolean" }).notNull().default(true),
   notes: text("notes"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),

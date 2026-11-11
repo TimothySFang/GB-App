@@ -1,0 +1,1 @@
+ALTER TABLE `climbs` ADD `uses_footboard` integer DEFAULT true NOT NULL;

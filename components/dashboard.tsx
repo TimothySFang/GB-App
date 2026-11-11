@@ -13,6 +13,7 @@ type LayoutMode = 'edit' | 'create';
 type DraftState = {
   name: string;
   setterGrade: string;
+  usesFootboard: boolean;
   notes: string;
   selected: Record<HoldRole, string[]>;
   positions: Record<string, { x: number; y: number }>;
@@ -28,6 +29,7 @@ type VersionDraft = {
 const emptyDraft = (): DraftState => ({
   name: '',
   setterGrade: '',
+  usesFootboard: true,
   notes: '',
   positions: {},
   selected: { start: [], middle: [], foot: [], finish: [] }
@@ -501,6 +503,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       createdAt: previous?.createdAt ?? new Date().toISOString(),
       name: draft.name.trim(),
       setterGrade: draft.setterGrade.trim(),
+      usesFootboard: draft.usesFootboard,
       notes: draft.notes.trim(),
       holds,
       ratings: previous?.ratings ?? [],
@@ -518,6 +521,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
         wallVersionId: selectedVersion.id,
         name: draft.name.trim(),
         setterGrade: draft.setterGrade.trim(),
+        usesFootboard: draft.usesFootboard,
         notes: draft.notes.trim(),
         holds
       })
@@ -556,7 +560,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
       if (ref.x != null && ref.y != null) positions[ref.holdId] = { x: ref.x, y: ref.y };
       else if (hold) positions[ref.holdId] = { x: hold.x, y: hold.y };
     }
-    setDraft({ name: climb.name, setterGrade: climb.setterGrade, notes: climb.notes, selected, positions });
+    setDraft({ name: climb.name, setterGrade: climb.setterGrade, usesFootboard: climb.usesFootboard, notes: climb.notes, selected, positions });
     setEditingClimbId(climb.id);
     setSelectedVersionId(climb.wallVersionId);
     setSelectedRole('start');
@@ -733,10 +737,17 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               <label className="label">Climb name {!editingClimbId && <span className="optional-label">Optional</span>}</label>
               <input className="input" placeholder={editingClimbId ? 'ex. Compression Goblin' : 'Leave blank for initials-uniqueid'} value={draft.name} onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))} />
             </div>
-            <div className="grid grid-2 mobile-grid-1">
+            <div className="grid grid-3 mobile-grid-1">
               <div>
                 <label className="label">Setter grade <span className="optional-label">Optional</span></label>
                 <input className="input" placeholder="Leave blank if ungraded" value={draft.setterGrade} onChange={(e) => setDraft((current) => ({ ...current, setterGrade: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">Footboard</label>
+                <select className="select" value={draft.usesFootboard ? 'use' : 'none'} onChange={(e) => setDraft((current) => ({ ...current, usesFootboard: e.target.value === 'use' }))}>
+                  <option value="use">Use footboard</option>
+                  <option value="none">No footboard</option>
+                </select>
               </div>
               <div>
                 <label className="label">Current picker mode</label>
@@ -760,7 +771,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             {formError && <div className="card" style={{ borderColor: '#7f1d1d', color: '#fecaca' }}>{formError}</div>}
             <div className="row">
               <button className="button" type="button" onClick={saveDraftClimb}>{editingClimbId ? 'Update climb' : 'Save climb'}</button>
-              <button className="button secondary" type="button" onClick={() => { if (!draft.name && !draft.setterGrade && !draft.notes && !hasDraftSelections) { setDraft(emptyDraft()); setEditingClimbId(null); return; } if (window.confirm('Discard unsaved climb changes?')) { setDraft(emptyDraft()); setEditingClimbId(null); setFormError(''); } }}>Reset</button>
+              <button className="button secondary" type="button" onClick={() => { if (!draft.name && !draft.setterGrade && draft.usesFootboard && !draft.notes && !hasDraftSelections) { setDraft(emptyDraft()); setEditingClimbId(null); return; } if (window.confirm('Discard unsaved climb changes?')) { setDraft(emptyDraft()); setEditingClimbId(null); setFormError(''); } }}>Reset</button>
             </div>
             <div className="card col draft-preview-card"><strong>Draft preview</strong><WallPreview version={selectedVersion} highlighted={highlightedDraftHolds} scale={photoAdjust.scale} offsetX={photoAdjust.offsetX} offsetY={photoAdjust.offsetY} rotation={photoAdjust.rotation} /></div>
               </>
@@ -1024,6 +1035,7 @@ function SwipeableClimbCard({ climb, layoutName, currentUserId, selected = false
         <div className="row climb-card-badges">
           {favorite && <span className="badge">favorite</span>}
           {sent && <span className="badge">sent</span>}
+          {!climb.usesFootboard && <span className="badge no-footboard-tag">no footboard</span>}
           {repeatCount > 0 && <span className="badge">your repeats {repeatCount}</span>}
           {compatibility && <span className="badge">{compatibility}</span>}
           {showHint && <span className="swipe-hint">← {sent ? 'repeat' : 'send'} · remove →</span>}
@@ -1056,7 +1068,8 @@ function ProfileColumn({ title, climbs, onOpen }: { title: string; climbs: Climb
         {climbs.length ? climbs.map((climb) => (
           <button key={climb.id} className="profile-row" onClick={() => onOpen(climb.id)}>
             <strong>{climb.name}</strong>
-            <span>{climb.setterGrade ?? communityGrade(climb)} · {totalRepeats(climb)}×</span>
+            {!climb.usesFootboard && <span className="profile-row-tag">no footboard</span>}
+            <span>{climb.setterGrade || communityGrade(climb)} · {totalRepeats(climb)}×</span>
           </button>
         )) : <div className="small">Nothing here yet.</div>}
       </div>
@@ -1135,6 +1148,7 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
             <div className="row">
               {favorite && <span className="badge">favorite</span>}
               {sent && <span className="badge">sent</span>}
+              {!climb.usesFootboard && <span className="badge no-footboard-tag">no footboard</span>}
             </div>
           </div>
           <div className="full-climb-preview">
