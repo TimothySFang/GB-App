@@ -15,6 +15,7 @@ type DraftState = {
   setterGrade: string;
   notes: string;
   selected: Record<HoldRole, string[]>;
+  positions: Record<string, { x: number; y: number }>;
 };
 
 type VersionDraft = {
@@ -28,6 +29,7 @@ const emptyDraft = (): DraftState => ({
   name: '',
   setterGrade: '',
   notes: '',
+  positions: {},
   selected: { start: [], middle: [], foot: [], finish: [] }
 });
 
@@ -75,7 +77,6 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     rotation: selectedVersion.photoRotation
   } : { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 };
   const inheritedClimbs = latest ? climbs.filter((climb) => climb.wallVersionId !== latest.id) : [];
-  const selectedHoldSet = new Set(Object.values(draft.selected).flat());
   const activeLayoutHold = selectedVersion?.holds.find((hold) => hold.id === layoutHoldId) ?? null;
   const detailClimb = climbs.find((climb) => climb.id === detailClimbId) ?? null;
   const currentUserId = data.currentUser.id;
@@ -468,6 +469,17 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     });
   };
 
+  const addClimbHold = (x: number, y: number) => {
+    const id = crypto.randomUUID();
+    setDraft((current) => ({ ...current,
+      positions: { ...current.positions, [id]: { x, y } },
+      selected: { ...current.selected, [selectedRole]: [...current.selected[selectedRole], id] }
+    }));
+  };
+  const moveClimbHold = (id: string, x: number, y: number) => {
+    setDraft((current) => ({ ...current, positions: { ...current.positions, [id]: { x, y } } }));
+  };
+
   const hasDraftSelections = Object.values(draft.selected).some((arr) => arr.length > 0);
 
   const saveDraftClimb = async () => {
@@ -479,7 +491,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     setRequestError('');
     if (!window.confirm(editingClimbId ? 'Save changes to this climb?' : 'Create this climb?')) return;
 
-    const holds = (['start', 'middle', 'foot', 'finish'] as HoldRole[]).flatMap((role) => draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1 })));
+    const holds = (['start', 'middle', 'foot', 'finish'] as HoldRole[]).flatMap((role) => draft.selected[role].map((holdId, index) => ({ holdId, role, order: index + 1, ...draft.positions[holdId] })));
     const previous = editingClimbId ? climbs.find((c) => c.id === editingClimbId) : null;
     const baseClimb: Climb = {
       id: editingClimbId ?? 'draft',
@@ -537,7 +549,14 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     if (climb.createdByUserId !== currentUserId) return;
     const selected: Record<HoldRole, string[]> = { start: [], middle: [], foot: [], finish: [] };
     for (const ref of climb.holds) selected[ref.role].push(ref.holdId);
-    setDraft({ name: climb.name, setterGrade: climb.setterGrade, notes: climb.notes, selected });
+    const version = versions.find((item) => item.id === climb.wallVersionId);
+    const positions: DraftState['positions'] = {};
+    for (const ref of climb.holds) {
+      const hold = version?.holds.find((item) => item.canonicalHoldId === ref.holdId);
+      if (ref.x != null && ref.y != null) positions[ref.holdId] = { x: ref.x, y: ref.y };
+      else if (hold) positions[ref.holdId] = { x: hold.x, y: hold.y };
+    }
+    setDraft({ name: climb.name, setterGrade: climb.setterGrade, notes: climb.notes, selected, positions });
     setEditingClimbId(climb.id);
     setSelectedVersionId(climb.wallVersionId);
     setSelectedRole('start');
@@ -566,13 +585,13 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     if (detailClimbId === climb.id) setDetailClimbId(null);
   };
 
-  const highlightedDraftHolds = selectedVersion
-    ? selectedVersion.holds
-    .filter((hold) => selectedHoldSet.has(hold.canonicalHoldId))
-    .map((hold) => ({ hold, role: (['start', 'middle', 'foot', 'finish'] as HoldRole[]).find((candidate) => draft.selected[candidate].includes(hold.canonicalHoldId)) }))
-    : [];
-
-  const roleSummary = (role: HoldRole) => selectedVersion ? draft.selected[role].map((holdId) => selectedVersion.holds.find((hold) => hold.canonicalHoldId === holdId)?.label).filter(Boolean).join(', ') || 'None selected' : 'No layout selected';
+  const draftMarkers = (['start', 'middle', 'foot', 'finish'] as HoldRole[]).flatMap((role) =>
+    draft.selected[role].flatMap((id, index) => {
+      const point = draft.positions[id];
+      return point ? [{ hold: { id, canonicalHoldId: id, label: `${index + 1}`, color: '#22c55e', status: 'active' as const, ...point }, role }] : [];
+    }));
+  const highlightedDraftHolds = draftMarkers;
+  const roleSummary = (role: HoldRole) => `${draft.selected[role].length} placed`;
 
   if (detailClimb) {
     return (
@@ -699,11 +718,11 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h2 className="section-title">{editingClimbId ? 'Edit climb' : 'New climb'}</h2>
-                <p className="section-subtitle">Pick a role, tap holds on the wall, and save the climb for everyone using this site.</p>
+                <p className="section-subtitle">Pick a role and tap the photo to place holds. Drag to adjust; tap a marker again to remove it or change its role.</p>
               </div>
               <div className="compact-field">
                 <label className="label">Layout for this climb</label>
-                <VersionSelect versions={versions} value={selectedVersionId} onChange={setSelectedVersionId} />
+                <VersionSelect versions={versions} value={selectedVersionId} onChange={(id) => { if (id === selectedVersionId) return; if (hasDraftSelections && !window.confirm('Change layout and clear placed holds?')) return; setSelectedVersionId(id); setDraft((current) => ({ ...current, positions: {}, selected: { start: [], middle: [], foot: [], finish: [] } })); }} />
               </div>
             </div>
             {!selectedVersion ? (
@@ -725,8 +744,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
               </div>
             </div>
             <div>
-              <label className="label">Tap holds on the wall</label>
-              <InteractiveWall version={selectedVersion} selectedRole={selectedRole} draft={draft.selected} onToggleHold={toggleHold} />
+              <label className="label">Tap the photo to place holds</label>
+              <InteractiveWall version={selectedVersion} selectedRole={selectedRole} markers={draftMarkers} onToggleHold={toggleHold} onAddHold={addClimbHold} onMoveHold={moveClimbHold} />
             </div>
             <div className="grid grid-4 mobile-grid-1">
               <div className="card col"><strong>Start holds</strong><span className="small">{roleSummary('start')}</span></div>
@@ -1094,7 +1113,10 @@ function FullScreenClimbPage({ climb, currentUserId, isAdminUser, versions, late
       </div>
     );
   }
-  const highlight = baseVersion.holds.filter((hold) => climb.holds.some((ref) => ref.holdId === hold.canonicalHoldId)).map((hold) => ({ hold, role: climb.holds.find((ref) => ref.holdId === hold.canonicalHoldId)?.role }));
+  const highlight = climb.holds.flatMap((ref) => {
+    const hold = ref.x != null && ref.y != null ? { id: ref.holdId, canonicalHoldId: ref.holdId, label: `${ref.order}`, x: ref.x, y: ref.y, color: '#22c55e', status: 'active' as const } : baseVersion.holds.find((item) => item.canonicalHoldId === ref.holdId);
+    return hold ? [{ hold, role: ref.role }] : [];
+  });
   const status = latestVersion && climb.wallVersionId !== latestVersion.id ? compatibility.find((entry) => entry.climbId === climb.id && entry.targetWallVersionId === latestVersion.id) : null;
   const favorite = isFavorited(climb, currentUserId);
   const sent = hasSent(climb, currentUserId);
@@ -1167,18 +1189,46 @@ function VersionSelect({ versions, value, onChange }: { versions: WallVersion[];
   );
 }
 
-function InteractiveWall({ version, selectedRole, draft, onToggleHold }: { version: WallVersion; selectedRole: HoldRole; draft: Record<HoldRole, string[]>; onToggleHold: (holdId: string) => void; }) {
+function InteractiveWall({ version, selectedRole, markers, onToggleHold, onAddHold, onMoveHold }: {
+  version: WallVersion; selectedRole: HoldRole; markers: Array<{ hold: Hold; role: HoldRole }>;
+  onToggleHold: (id: string) => void; onAddHold: (x: number, y: number) => void;
+  onMoveHold: (id: string, x: number, y: number) => void;
+}) {
+  const boardRef = useRef<HTMLDivElement>(null);
+  const pointer = useRef<{ id: number; holdId?: string; x: number; y: number; moved: boolean } | null>(null);
+  const point = (event: PointerEvent<HTMLDivElement>) => {
+    const rect = boardRef.current!.getBoundingClientRect();
+    return { x: clamp((event.clientX - rect.left) / rect.width * 100, 1, 99), y: clamp((event.clientY - rect.top) / rect.height * 100, 1, 99) };
+  };
   return (
-    <div className="wall-preview interactive-wall">
+    <div ref={boardRef} className="wall-preview interactive-wall board-editor climb-marker-board"
+      onPointerDown={(event) => {
+        if (!event.isPrimary || event.button !== 0) return;
+        const holdId = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-marker]')?.dataset.marker;
+        pointer.current = { id: event.pointerId, holdId, x: event.clientX, y: event.clientY, moved: false };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const active = pointer.current;
+        if (!active || active.id !== event.pointerId) return;
+        if (Math.hypot(event.clientX - active.x, event.clientY - active.y) > 6) active.moved = true;
+        if (active.moved && active.holdId) { const pos = point(event); onMoveHold(active.holdId, pos.x, pos.y); }
+      }}
+      onPointerUp={(event) => {
+        const active = pointer.current;
+        pointer.current = null;
+        if (!active || active.id !== event.pointerId || active.moved) return;
+        if (active.holdId) onToggleHold(active.holdId);
+        else { const pos = point(event); onAddHold(pos.x, pos.y); }
+      }}
+      onPointerCancel={() => { pointer.current = null; }}>
       <div className="wall-preview-image-layer" style={{ transform: `translate(${version.photoOffsetX}px, ${version.photoOffsetY}px) scale(${version.photoScale}) rotate(${version.photoRotation}deg)` }}>
-        {version.imageUrl ? <img className="wall-image" src={version.imageUrl} alt={version.name} /> : <div className="wall-empty-image">No wall photo yet</div>}
+        {version.imageUrl ? <img className="wall-image" src={version.imageUrl} alt={version.name} /> : <div className="wall-empty-image">Upload a layout photo to place holds</div>}
       </div>
       <div className="wall-preview-inner">
-        {version.holds.map((hold: Hold) => {
-          const role = (['start', 'middle', 'foot', 'finish'] as HoldRole[]).find((candidate) => draft[candidate].includes(hold.canonicalHoldId));
-          const isSelected = Boolean(role);
-          const roleColor = role === 'start' ? '#32d74b' : role === 'middle' ? '#bf5af2' : role === 'foot' ? '#f59e0b' : role === 'finish' ? '#ff453a' : '#ffffff';
-          return <button key={hold.id} type="button" className={`hold-button ${isSelected ? 'selected' : ''}`} title={`${hold.label} · add as ${selectedRole}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: roleColor }} onClick={() => onToggleHold(hold.canonicalHoldId)}><span>{hold.label}</span></button>;
+        {markers.map(({ hold, role }) => {
+          const color = role === 'start' ? '#32d74b' : role === 'middle' ? '#bf5af2' : role === 'foot' ? '#f59e0b' : '#ff453a';
+          return <button key={hold.id} data-marker={hold.id} type="button" className="hold-button selected climb-marker" aria-label={`${role} hold ${hold.label}; tap to ${role === selectedRole ? 'remove' : `change to ${selectedRole}`}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color }} onClick={(event) => { if (event.detail === 0) onToggleHold(hold.id); }}><span>{hold.label}</span></button>;
         })}
       </div>
     </div>

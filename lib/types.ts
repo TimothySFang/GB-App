@@ -25,6 +25,8 @@ export type ClimbHold = {
   holdId: string;
   role: HoldRole;
   order: number;
+  x?: number;
+  y?: number;
 };
 
 export type GradeVote = {

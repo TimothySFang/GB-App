@@ -22,6 +22,13 @@
       "when": 1794241369826,
       "tag": "0002_tricky_mockingbird",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794357841174,
+      "tag": "0003_sweet_scalphunter",
+      "breakpoints": true
     }
   ]
 }

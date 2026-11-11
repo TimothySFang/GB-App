@@ -63,9 +63,11 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
       c.created_by_user_id AS createdByUserId, u.display_name AS createdByName,
       c.created_at AS createdAt, c.name, c.setter_grade AS setterGrade, c.notes
       FROM climbs c JOIN users u ON u.id = c.created_by_user_id ORDER BY c.created_at`),
-    all<{ climbId: string; canonicalHoldId: string; role: HoldRole; orderIndex: number }>(`SELECT ch.climb_id AS climbId,
-      h.canonical_hold_id AS canonicalHoldId, ch.role, ch.order_index AS orderIndex
-      FROM climb_holds ch JOIN holds h ON h.id = ch.hold_id ORDER BY ch.order_index`),
+    all<{ climbId: string; canonicalHoldId: string; role: HoldRole; orderIndex: number; x: number | null; y: number | null }>(`SELECT ch.climb_id AS climbId,
+      h.canonical_hold_id AS canonicalHoldId, ch.role, ch.order_index AS orderIndex, NULL AS x, NULL AS y
+      FROM climb_holds ch JOIN holds h ON h.id = ch.hold_id
+      UNION ALL SELECT climb_id AS climbId, id AS canonicalHoldId, role, order_index AS orderIndex, x, y
+      FROM climb_markers ORDER BY orderIndex`),
     all<{ climbId: string; userId: string; stars: number }>("SELECT climb_id AS climbId, user_id AS userId, stars FROM climb_ratings"),
     all<{ climbId: string; userId: string; grade: string }>("SELECT climb_id AS climbId, user_id AS userId, suggested_grade AS grade FROM climb_grade_votes"),
     all<{ climbId: string; userId: string }>("SELECT climb_id AS climbId, user_id AS userId FROM favorites"),
@@ -118,7 +120,7 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
       name: climb.name,
       setterGrade: climb.setterGrade ?? "",
       notes: climb.notes ?? "",
-      holds: climbHolds.filter((item) => item.climbId === climb.id).map((item) => ({ holdId: item.canonicalHoldId, role: item.role, order: item.orderIndex })),
+      holds: climbHolds.filter((item) => item.climbId === climb.id).map((item) => ({ holdId: item.canonicalHoldId, role: item.role, order: item.orderIndex, ...(item.x != null && item.y != null ? { x: item.x, y: item.y } : {}) })),
       ratings: ratings.filter((item) => item.climbId === climb.id).map(({ userId, stars }) => ({ userId, stars })),
       gradeVotes: gradeVotes.filter((item) => item.climbId === climb.id).map(({ userId, grade }) => ({ userId, grade })),
       favorites: favorites.filter((item) => item.climbId === climb.id).map((item) => item.userId),

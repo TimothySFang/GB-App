@@ -64,6 +64,15 @@ export const climbHolds = sqliteTable("climb_holds", {
   orderIndex: integer("order_index").notNull().default(0),
 });
 
+export const climbMarkers = sqliteTable("climb_markers", {
+  id: text("id").primaryKey(),
+  climbId: text("climb_id").notNull().references(() => climbs.id, { onDelete: "cascade" }),
+  x: real("x").notNull(),
+  y: real("y").notNull(),
+  role: text("role", { enum: ["start", "middle", "foot", "finish"] }).notNull(),
+  orderIndex: integer("order_index").notNull().default(0),
+});
+
 export const climbRatings = sqliteTable("climb_ratings", {
   climbId: text("climb_id").notNull().references(() => climbs.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

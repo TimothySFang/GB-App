@@ -1,7 +1,8 @@
+import { climbHoldStatements, validClimbHolds } from "@/lib/climb-holds";
 import { NextRequest, NextResponse } from "next/server";
-import { all, first, getD1 } from "@/db";
+import { first, getD1 } from "@/db";
 import { requireAuthenticatedUser } from "@/lib/auth";
-import type { HoldRole } from "@/lib/types";
+import type { ClimbHold } from "@/lib/types";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireAuthenticatedUser();
@@ -16,28 +17,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     name?: string;
     setterGrade?: string;
     notes?: string;
-    holds?: Array<{ holdId: string; role: HoldRole; order: number }>;
+    holds?: ClimbHold[];
   };
-  if (!wallVersionId || !name || !Array.isArray(holds) || !holds.length) {
+  if (!wallVersionId || typeof name !== 'string' || !name.trim() || !validClimbHolds(holds)) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
-  const versionHolds = await all<{ id: string; canonicalHoldId: string }>(
-    "SELECT id, canonical_hold_id AS canonicalHoldId FROM holds WHERE wall_version_id = ?",
-    wallVersionId,
-  );
-  const resolved = holds.map((ref) => ({ ref, hold: versionHolds.find((item) => item.canonicalHoldId === ref.holdId) }));
-  if (resolved.some((item: { hold?: { id: string } }) => !item.hold)) {
-    return NextResponse.json({ error: "One or more selected holds are no longer saved on this layout" }, { status: 400 });
+  if (!await first('SELECT id FROM wall_versions WHERE id = ?', wallVersionId)) {
+    return NextResponse.json({ error: 'Layout not found' }, { status: 400 });
   }
 
   const db = getD1();
+  let holdStatements: D1PreparedStatement[];
+  try { holdStatements = await climbHoldStatements(db, id, wallVersionId, holds); }
+  catch { return NextResponse.json({ error: 'Selected holds could not be resolved' }, { status: 400 }); }
   await db.batch([
     db.prepare(`UPDATE climbs SET wall_version_id = ?, name = ?, setter_grade = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .bind(wallVersionId, name.trim(), setterGrade?.trim() || null, notes ?? "", id),
     db.prepare("DELETE FROM climb_holds WHERE climb_id = ?").bind(id),
-    ...resolved.map((item) =>
-      db.prepare("INSERT INTO climb_holds (id, climb_id, hold_id, role, order_index) VALUES (?, ?, ?, ?, ?)")
-        .bind(crypto.randomUUID(), id, item.hold!.id, item.ref.role, item.ref.order)),
+    db.prepare("DELETE FROM climb_markers WHERE climb_id = ?").bind(id),
+    ...holdStatements,
   ]);
   return NextResponse.json({ ok: true });
 }
