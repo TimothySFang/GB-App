@@ -322,7 +322,6 @@ a { color: inherit; text-decoration: none; }
 .file-button { position: relative; overflow: hidden; }
 .file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .board-editor { touch-action: none; }
-.board-helper { position: absolute; top: 12px; left: 12px; padding: 7px 10px; border-radius: 999px; color: var(--ink); background: var(--lime); font-size: 11px; font-weight: 800; }
 .auth-error { color: #721d13; border-color: #721d13; background: #ffe6df; }
 hr.sep { margin: 8px 0; border: 0; border-top: 1px solid var(--line); }
 

@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { NextRequest, NextResponse } from "next/server";
 import { first } from "@/db";
 import { isAdmin, requireAuthenticatedUser } from "@/lib/auth";
-import { persistVersionImage } from "@/lib/site-data";
+import { getSerializedVersion, persistVersionImage } from "@/lib/site-data";
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireAuthenticatedUser();
@@ -23,7 +23,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   return new NextResponse(object.body, {
     headers: {
       "Content-Type": object.httpMetadata?.contentType ?? version.contentType ?? "application/octet-stream",
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "private, no-cache",
     },
   });
 }
@@ -36,5 +36,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { imageUrl } = await req.json() as { imageUrl?: string };
   if (!imageUrl || typeof imageUrl !== "string") return NextResponse.json({ error: "Missing imageUrl" }, { status: 400 });
   await persistVersionImage(id, imageUrl);
-  return NextResponse.json({ ok: true, imageUrl: `/api/versions/${id}/image` });
+  const version = await getSerializedVersion(id);
+  return NextResponse.json({ ok: true, imageUrl: version?.imageUrl });
 }

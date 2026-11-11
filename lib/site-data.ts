@@ -1,3 +1,4 @@
+import { versionImageUrl } from "@/lib/version-image";
 import { env } from "cloudflare:workers";
 import { all, first, getD1, run } from "@/db";
 import type { ChangeType, HoldStatus, WallVersion } from "@/lib/types";
@@ -51,7 +52,7 @@ export async function getSerializedVersion(id: string): Promise<WallVersion | nu
     parentVersionId: version.parentVersionId ?? undefined,
     name: version.name,
     changeType: version.changeType,
-    imageUrl: version.imageKey ? `/api/versions/${version.id}/image` : (version.imageUrl ?? ""),
+    imageUrl: version.imageKey ? versionImageUrl(version.id, version.imageKey) : (version.imageUrl ?? ""),
     photoScale: version.photoScale,
     photoOffsetX: version.photoOffsetX,
     photoOffsetY: version.photoOffsetY,
@@ -80,7 +81,7 @@ export async function persistVersionImage(versionId: string, imageUrl: string) {
     return;
   }
 
-  const sourceMatch = /^\/api\/versions\/([^/]+)\/image$/.exec(imageUrl);
+  const sourceMatch = /^\/api\/versions\/([^/?]+)\/image(?:\?[^#]*)?$/.exec(imageUrl);
   if (sourceMatch) {
     const source = await first<{ imageKey: string | null; contentType: string | null; imageUrl: string | null }>(
       "SELECT image_key AS imageKey, image_content_type AS contentType, image_url AS imageUrl FROM wall_versions WHERE id = ?",

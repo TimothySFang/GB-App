@@ -59,6 +59,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   const activityNoticeTimer = useRef<number | null>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('edit');
   const [savingLayout, setSavingLayout] = useState(false);
+  const [readingImage, setReadingImage] = useState(false);
   const [dirtyLayoutIds, setDirtyLayoutIds] = useState<Set<string>>(new Set());
   const [versionDraft, setVersionDraft] = useState<VersionDraft>({
     name: latest ? `${latest.name} Copy` : 'New Layout',
@@ -332,12 +333,17 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
     if (!selectedVersion) return;
     const file = event.target.files?.[0];
     if (!file) return;
+    event.target.value = '';
+    setReadingImage(true);
     const reader = new FileReader();
     reader.onload = () => {
       const result = typeof reader.result === 'string' ? reader.result : selectedVersion.imageUrl;
       updateSelectedVersion((version) => ({ ...version, imageUrl: result }), true);
       setRequestError('');
+      setReadingImage(false);
     };
+    reader.onerror = () => { setReadingImage(false); setRequestError('Could not read the photo. Please upload it again.'); };
+    reader.onabort = () => setReadingImage(false);
     reader.readAsDataURL(file);
   };
 
@@ -375,7 +381,7 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
   };
 
   const saveSelectedLayout = async () => {
-    if (!selectedVersion) return;
+    if (!selectedVersion || readingImage || savingLayout) return;
     setSavingLayout(true);
     setRequestError('');
 
@@ -790,8 +796,8 @@ export function Dashboard({ initialData }: { initialData: DashboardData }) {
                       <VersionSelect versions={versions} value={selectedVersionId} onChange={(value) => { setSelectedVersionId(value); setLayoutHoldId(null); }} />
                     </div>
                     <div className="button-row layout-action-buttons">
-                    <label className="button secondary file-button">Upload image<input type="file" accept="image/*" onChange={onBoardImageUpload} /></label>
-                    <button className="button secondary" type="button" onClick={saveSelectedLayout} aria-label="Save layout changes" disabled={!selectedVersion || !layoutHasUnsavedChanges || savingLayout}>{savingLayout ? 'Saving…' : 'Save'}</button>
+                    <label className="button secondary file-button">Upload image<input type="file" accept="image/*" disabled={readingImage || savingLayout} onChange={onBoardImageUpload} /></label>
+                    <button className="button secondary" type="button" onClick={saveSelectedLayout} aria-label="Save layout changes" disabled={!selectedVersion || !layoutHasUnsavedChanges || savingLayout || readingImage}>{readingImage ? 'Reading…' : savingLayout ? 'Saving…' : 'Save'}</button>
                     <button className="button danger" type="button" onClick={deleteSelectedLayout} aria-label="Delete layout" disabled={!selectedVersion}>Delete</button>
                     </div>
                   </div>
@@ -1209,7 +1215,6 @@ function TapDragBoard({ version, activeHoldId, onSelectHold, onMoveHold, onAddHo
       <div className="wall-preview-inner">
         {version.holds.map((hold) => <button key={hold.id} type="button" className={`hold-button draggable ${activeHoldId === hold.id ? 'selected' : ''}`} style={{ left: `${hold.x}%`, top: `${hold.y}%`, color: '#22c55e' }} onPointerDown={(event) => { event.stopPropagation(); dragRef.current = { holdId: hold.id, pointerId: event.pointerId }; onSelectHold(hold.id); }}><span>{hold.label}</span></button>)}
       </div>
-      <div className="board-helper">Tap empty space to add a hold · drag a hold to move it</div>
     </div>
   );
 }

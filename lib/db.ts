@@ -1,3 +1,4 @@
+import { versionImageUrl } from "@/lib/version-image";
 import { all, first, run } from "@/db";
 import type {
   ChangeType,
@@ -91,7 +92,7 @@ export async function getDashboardData(currentUserId: string): Promise<Dashboard
         parentVersionId: version.parentVersionId ?? undefined,
         name: version.name,
         changeType: version.changeType,
-        imageUrl: version.imageKey ? `/api/versions/${version.id}/image` : (version.imageUrl ?? ""),
+        imageUrl: version.imageKey ? versionImageUrl(version.id, version.imageKey) : (version.imageUrl ?? ""),
         photoScale: version.photoScale,
         photoOffsetX: version.photoOffsetX,
         photoOffsetY: version.photoOffsetY,
